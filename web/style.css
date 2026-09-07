@@ -1,0 +1,413 @@
+/* PhoneDeck.
+
+   ORIENTATION: one markup, two arrangements. Landscape (the phone lying on
+   its side, ~720x360 CSS px) becomes the three-column board from the design:
+   components down the left with their own scroll, a fixed centre column, and
+   top processes on the right with a separate scroll. Portrait stacks the same
+   columns into one scrolling page. Nothing in JavaScript decides this -- the
+   media queries do, so rotating the phone rearranges it instantly.
+
+   COMPATIBILITY: the device's Android System WebView is Chromium 71 (2018)
+   and cannot be assumed to update. Consequences worked around throughout:
+
+     * "inset" needs its longhand (top/right/bottom/left)
+     * "aspect-ratio" does not exist -- squares come from an explicit height
+     * "gap" works in grid but NOT in flexbox -- flex spacing uses margins
+
+   Test changes on the device, not only in desktop Chrome. */
+
+:root {
+  --bg: #0b0f16;
+  --card: #141b26;
+  --card-2: #1b2430;
+  --line: #232e3d;
+  --text: #e8eef7;
+  --muted: #8394ab;
+
+  /* The three component colours from the design. The CPU pair (dot in the top
+     bar, card on the left) share colour 1; the GPU pair share colour 2. */
+  --c-cpu: #4c8dff;
+  --c-ram: #b57bee;
+  --c-gpu: #38d39f;
+
+  --ok: #38b48b;
+  --warn: #f0a94c;
+  --bad: #e2617a;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* The hidden attribute must win over the display rules below;
+   .drawer sets display:flex, which would otherwise keep it on screen. */
+[hidden] { display: none !important; }
+
+/* No height here on purpose. Only the landscape board needs a viewport-sized
+   body; pinning it globally would make <body> the scroll container in
+   portrait instead of the document, which breaks scrolling in subtle ways. */
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.35 -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  overscroll-behavior-y: contain;
+}
+
+/* Scrollbars are hidden everywhere on purpose: the panes still scroll, but a
+   visible bar spoils the look of a dashboard that is always on display. */
+::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.col, .procs, .deck, .tabs { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* =========================================================== top bar ==== */
+.topbar {
+  display: flex; align-items: center;
+  padding: 6px 10px;
+  background: #0e141d;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.brand { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
+.brand .name { font-weight: 650; font-size: 14px; letter-spacing: .2px; }
+.brand .uptime { color: var(--muted); font-size: 10.5px; letter-spacing: .3px; }
+.brand .uptime b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.bar-tools { display: flex; align-items: center; }
+.temps { display: flex; align-items: center; }
+
+/* ------------------------------------------------ quick-launch logos -- */
+.launch { display: flex; align-items: center; margin-left: 14px; }
+.slot {
+  width: 32px; height: 32px; margin-left: 7px; padding: 0;
+  border-radius: 8px; border: 1px solid var(--line);
+  background: var(--card-2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; overflow: hidden;
+}
+.slot:active { transform: scale(.92); }
+.slot img { width: 22px; height: 22px; display: block; }
+.slot .fallback { font-size: 15px; line-height: 1; }
+.slot.busy { opacity: .5; }
+/* An unassigned slot stays visible so it is obvious one is free to fill. */
+.slot.empty {
+  border-style: dashed; background: transparent;
+  color: #4a5a70; font-size: 17px; line-height: 1;
+}
+.temp {
+  display: flex; align-items: baseline;
+  margin-left: 14px; font-size: 12px; white-space: nowrap;
+}
+.tdot {
+  width: 9px; height: 9px; border-radius: 50%;
+  margin-right: 6px; align-self: center; flex: none;
+}
+.t-cpu .tdot { background: var(--c-cpu); box-shadow: 0 0 7px var(--c-cpu); }
+.t-gpu .tdot { background: var(--c-gpu); box-shadow: 0 0 7px var(--c-gpu); }
+.tlabel { color: var(--muted); margin-right: 5px; letter-spacing: .5px; }
+.temp b { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.t-cpu b { color: var(--c-cpu); }
+.t-gpu b { color: var(--c-gpu); }
+.deg { color: var(--muted); font-size: 10px; margin-left: 1px; }
+
+/* The Claude light: colour is set from the tracker, so no fixed rule here.
+   It pulses only while a turn is actually running. */
+.t-claude b { color: var(--muted); font-weight: 600; text-transform: lowercase; }
+.t-claude .tdot { background: #5f7188; transition: background .3s ease; }
+.t-claude.busy .tdot { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+.link { display: flex; align-items: center; font-size: 10.5px;
+  color: var(--muted); margin-left: 14px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+  flex: none; margin-right: 5px; }
+.dot.ok   { background: var(--ok);   box-shadow: 0 0 7px var(--ok); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 7px var(--warn); }
+.dot.bad  { background: var(--bad);  box-shadow: 0 0 7px var(--bad); }
+
+.menu {
+  margin-left: 14px; flex: none;
+  width: 40px; height: 34px; border-radius: 9px;
+  background: var(--card-2); border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0;
+}
+.menu:active { transform: scale(.94); }
+.menu-grid { display: grid; grid-template-columns: repeat(3, 4px); grid-gap: 3px; }
+.menu-grid i { width: 4px; height: 4px; border-radius: 1px;
+  background: var(--muted); display: block; }
+
+/* ============================================================= board ==== */
+.board { padding: 8px; }
+.col { min-width: 0; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-left-color: var(--line);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  margin-bottom: 8px;
+}
+.col > .card:last-child { margin-bottom: 0; }
+
+/* The accent ties each card to its dot in the top bar. */
+.a-cpu { border-left-color: var(--c-cpu); }
+.a-ram { border-left-color: var(--c-ram); }
+.a-gpu { border-left-color: var(--c-gpu); }
+.a-cpu .big { color: var(--c-cpu); }
+.a-ram .big { color: var(--c-ram); }
+.a-gpu .big { color: var(--c-gpu); }
+.a-cpu .bar > i { background: var(--c-cpu); }
+.a-ram .bar > i { background: var(--c-ram); }
+.a-gpu .bar > i { background: var(--c-gpu); }
+.a-cpu .cores > i { background: var(--c-cpu); }
+
+.card h2, .card h3 {
+  margin: 0; font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .9px; color: var(--muted);
+}
+.card-head { display: flex; align-items: baseline; justify-content: space-between; }
+.big { font-size: 21px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums; margin-left: 8px; }
+
+.bar {
+  height: 6px; margin: 7px 0 5px;
+  background: var(--card-2); border-radius: 999px; overflow: hidden;
+}
+.bar > i {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--c-cpu); transition: width .35s ease;
+}
+
+.cores { display: flex; height: 18px; align-items: flex-end; margin-bottom: 6px; }
+.cores > i {
+  flex: 1; border-radius: 2px 2px 0 0; min-height: 2px;
+  opacity: .8; margin-right: 2px; transition: height .35s ease;
+}
+.cores > i:last-child { margin-right: 0; }
+
+.meta {
+  display: flex; justify-content: space-between;
+  color: var(--muted); font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta + .meta { margin-top: 2px; }
+
+/* ------------------------------------------------- centre: net + disk -- */
+.rate { display: flex; align-items: center; font-size: 13px;
+  font-variant-numeric: tabular-nums; padding: 2px 0; }
+.rate .arrow { width: 14px; text-align: center; font-size: 10.5px;
+  color: var(--muted); margin-right: 7px; flex: none; }
+.rate.down .arrow { color: var(--ok); }
+.rate.up .arrow { color: var(--warn); }
+
+.disk { touch-action: pan-y; }
+.drive {
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.drive-head { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; }
+.drive-head b { font-weight: 650; }
+.drive-head span { color: var(--muted); font-size: 10px; }
+.drive .bar > i { background: var(--ok); }
+.drive .bar > i.warn { background: var(--warn); }
+.drive .bar > i.bad  { background: var(--bad); }
+
+.dots { display: flex; justify-content: center; margin-top: 6px; }
+.dots i {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--line); margin: 0 3px; display: block;
+  transition: background .2s ease;
+}
+.dots i.on { background: var(--muted); }
+
+/* --------------------------------------------------- right: processes -- */
+.card.fill { display: flex; flex-direction: column; }
+.seg {
+  display: flex; flex: none;
+  background: var(--card-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px; margin-bottom: 8px;
+}
+.seg-btn {
+  flex: 1; padding: 5px 0; border: 0; border-radius: 999px;
+  background: transparent; color: var(--muted);
+  font: inherit; font-size: 11.5px; letter-spacing: .5px; cursor: pointer;
+}
+.seg-btn.active { background: var(--c-cpu); color: #fff; font-weight: 650; }
+.seg-btn[data-metric="mem"].active { background: var(--c-ram); }
+
+.procs { overflow-y: auto; min-height: 0; }
+.proc {
+  display: grid; grid-template-columns: 1fr auto; grid-gap: 8px;
+  align-items: center; padding: 5px 0;
+  border-top: 1px solid var(--line); font-size: 11.5px;
+}
+.proc:first-child { border-top: 0; }
+.proc .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proc .val { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 11px; }
+.proc.killing { opacity: .4; }
+
+/* ================================================ landscape (the desk) == */
+@media (orientation: landscape) {
+  /* The board fills the screen exactly and never scrolls as a whole; the
+     individual columns do their own scrolling. */
+  html, body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+
+  .board {
+    flex: 1; min-height: 0;
+    display: grid;
+    /* Roughly the proportions in the design: components | fixed | processes */
+    grid-template-columns: 1.45fr 0.8fr 1.3fr;
+    grid-gap: 8px;
+  }
+
+  /* min-height:0 is what actually lets a grid child scroll instead of
+     stretching its track to fit the content. */
+  .col { min-height: 0; }
+  .col-left  { overflow-y: auto; }          /* independent scroll */
+  .col-mid   { overflow: hidden; }          /* locked, as designed */
+  .col-right { overflow: hidden; display: flex; flex-direction: column; }
+  .col-right .card.fill { flex: 1; min-height: 0; }
+}
+
+/* ==================================================== portrait (stack) == */
+@media (orientation: portrait) {
+  /* Ordinary document scrolling; nothing clever needed. */
+  html, body { overflow-x: hidden; }
+  body { font-size: 15px; }
+
+  .board { padding: 12px; }
+  .col { margin-bottom: 12px; }
+  .col:last-child { margin-bottom: 0; }
+
+  .topbar { padding: 10px 12px; }
+  .brand .name { font-size: 16px; }
+  .brand .uptime { font-size: 11.5px; }
+  .temp { font-size: 13px; margin-left: 10px; }
+  .temp b { font-size: 16px; }
+
+  /* 360px cannot hold the brand, both temperatures, three launchers, the
+     link status and the menu on one line. The connection dot alone carries
+     the same information as its label, so the label goes; and the tools drop
+     to a second row, leaving the brand and menu on the first. */
+  #linkText { display: none; }
+  .link { margin-left: 10px; order: 1; }
+  .menu { margin-left: 10px; order: 2; }
+
+  .topbar { flex-wrap: wrap; }
+  .bar-tools {
+    order: 3; width: 100%;
+    margin-top: 9px; justify-content: space-between;
+  }
+  /* Four slots alongside both temperatures leaves almost nothing spare on a
+     360px row, so the slots stay compact here and keep a visible gap. */
+  .launch { margin-left: 12px; }
+  .slot { width: 32px; height: 32px; margin-left: 6px; }
+  .slot img { width: 22px; height: 22px; }
+
+  .card { padding: 13px 14px; margin-bottom: 12px; border-radius: 14px; }
+  .card h2, .card h3 { font-size: 12px; }
+  .big { font-size: 28px; }
+  .bar { height: 8px; margin: 10px 0 7px; }
+  .cores { height: 24px; }
+  .meta { font-size: 12px; }
+  .rate { font-size: 15px; }
+  .proc { font-size: 13px; padding: 8px 0; }
+  .seg-btn { font-size: 13px; padding: 7px 0; }
+
+  /* Give the process list its own scroll here too, rather than letting it
+     run on for twenty rows and bury the rest of the page. */
+  .procs { max-height: 320px; }
+
+  .board { padding-bottom: 130px; }
+}
+
+/* ============================================================ drawer ==== */
+.drawer {
+  /* Longhand, not "inset" -- see the compatibility note at the top. */
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 30;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  animation: rise .18s ease-out;
+}
+@keyframes rise { from { transform: translateY(14px); opacity: 0; } }
+
+.drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 15px;
+  flex: none;
+}
+.close {
+  background: var(--card-2); color: var(--text); border: 1px solid var(--line);
+  width: 36px; height: 36px; border-radius: 9px; font-size: 20px; line-height: 1;
+  cursor: pointer; padding: 0;
+}
+
+.tabs { display: flex; padding: 9px 12px; overflow-x: auto;
+  border-bottom: 1px solid var(--line); flex: none; }
+.tab {
+  flex: none; padding: 7px 13px; border-radius: 999px; margin-right: 7px;
+  background: var(--card); border: 1px solid var(--line); color: var(--muted);
+  font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.tab:last-child { margin-right: 0; }
+.tab.active { background: var(--c-cpu); border-color: var(--c-cpu);
+  color: #fff; font-weight: 600; }
+
+.deck {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-gap: 10px;
+  align-content: start;
+}
+.btn {
+  /* An explicit height instead of aspect-ratio; see the note at the top. */
+  min-height: 92px;
+  border-radius: var(--radius);
+  background: var(--card); border: 1px solid var(--line); color: var(--text);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 6px; cursor: pointer; text-align: center;
+  position: relative; overflow: hidden;
+}
+.btn:active { transform: scale(.95); }
+.btn .ico { font-size: 24px; line-height: 1; margin-bottom: 6px; }
+.btn .lbl { font-size: 11px; line-height: 1.25; color: var(--text);
+  max-width: 100%; overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.btn::after {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--accent, #4c8dff);
+}
+.btn.busy { opacity: .55; }
+/* Named for the deck specifically: a bare ".empty" also matched ".slot.empty"
+   in the top bar and forced its padding, stretching the slot. */
+.deck-empty { grid-column: 1 / -1; color: var(--muted); text-align: center; padding: 34px 10px; }
+.deck-empty a { color: var(--c-cpu); }
+
+/* Landscape is wide and short: more columns, shorter tiles. */
+@media (orientation: landscape) {
+  .deck { grid-template-columns: repeat(6, 1fr); }
+  .btn { min-height: 84px; }
+}
+
+/* ============================================================= toast ==== */
+.toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  z-index: 50; max-width: 80vw;
+  background: #223046; border: 1px solid var(--line); color: var(--text);
+  padding: 9px 15px; border-radius: 9px; font-size: 12.5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+}
+.toast.ok  { border-color: var(--ok); }
+.toast.bad { border-color: var(--bad); }
+
+/* Desktop browser: keep it readable rather than phone-sized. */
+@media (min-width: 900px) and (orientation: landscape) {
+  body { font-size: 14px; }
+  .board { padding: 12px; grid-gap: 12px; }
+  .card { padding: 12px 14px; }
+  .big { font-size: 26px; }
+  .deck { grid-template-columns: repeat(8, 1fr); }
+}

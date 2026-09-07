@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0f16">
+<title>PhoneDeck</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- One markup for both orientations. CSS decides whether the three columns
+     sit side by side (landscape) or stack into a scrolling page (portrait). -->
+
+<header class="topbar">
+  <div class="brand">
+    <span class="name">PhoneDeck</span>
+    <span class="uptime">UP <b id="uptime">00:00:00</b></span>
+  </div>
+
+  <!-- Temperatures and the quick-launch logos travel together, so that in
+       portrait they can drop to a second row as one unit. -->
+  <div class="bar-tools">
+    <div class="temps">
+      <div class="temp t-cpu">
+        <i class="tdot"></i>
+        <span class="tlabel">CPU</span>
+        <b id="cpuTemp">--</b><span class="deg">&deg;C</span>
+      </div>
+      <div class="temp t-gpu">
+        <i class="tdot"></i>
+        <span class="tlabel">GPU</span>
+        <b id="gpuTemp">--</b><span class="deg">&deg;C</span>
+      </div>
+
+      <!-- Claude activity light. Colour and text are set from the hook state. -->
+      <div class="temp t-claude" id="claudeLed" title="Claude">
+        <i class="tdot" id="claudeDot"></i>
+        <b id="claudeState">off</b>
+      </div>
+    </div>
+
+    <!-- Three logo-only launchers, filled in from shortcuts.json -->
+    <div class="launch" id="launch"></div>
+  </div>
+
+  <div class="link" id="linkState">
+    <span class="dot" id="linkDot"></span>
+    <span id="linkText">connecting</span>
+  </div>
+
+  <button class="menu" id="fab" aria-label="Open shortcuts">
+    <span class="menu-grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+  </button>
+</header>
+
+<main class="board">
+
+  <!-- ---------------------------------------------- left: the components -->
+  <section class="col col-left" id="colLeft">
+
+    <div class="card a-cpu">
+      <div class="card-head"><h2>CPU</h2><span class="big" id="cpuPct">0%</span></div>
+      <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
+      <div class="cores" id="cores"></div>
+      <div class="meta"><span id="cpuName">&mdash;</span></div>
+      <div class="meta"><span id="cpuCores">&mdash;</span><span id="cpuFreq">&mdash;</span></div>
+    </div>
+
+    <div class="card a-ram">
+      <div class="card-head"><h2>RAM</h2><span class="big" id="memPct">0%</span></div>
+      <div class="bar"><i id="memBar" style="width:0%"></i></div>
+      <div class="meta"><span id="memText">&mdash;</span><span id="swapText"></span></div>
+    </div>
+
+    <div class="card a-gpu">
+      <div class="card-head"><h2>GPU</h2><span class="big" id="gpuPct">&mdash;</span></div>
+      <div class="bar"><i id="gpuBar" style="width:0%"></i></div>
+      <div class="meta"><span id="gpuName">&mdash;</span></div>
+      <div class="meta"><span id="gpuVram">&mdash;</span><span id="gpuPower"></span></div>
+    </div>
+
+  </section>
+
+  <!-- ------------------------------------------- centre: fixed, no scroll -->
+  <section class="col col-mid">
+
+    <div class="card">
+      <h3>NETWORK</h3>
+      <div class="rate down"><span class="arrow">&#8595;</span><span id="netDown">0 B/s</span></div>
+      <div class="rate up"><span class="arrow">&#8593;</span><span id="netUp">0 B/s</span></div>
+    </div>
+
+    <!-- Swipe left/right across this card to page through the drives. -->
+    <div class="card disk" id="diskCard">
+      <h3>DISK I/O</h3>
+      <div class="rate down"><span class="arrow">R</span><span id="ioRead">0 B/s</span></div>
+      <div class="rate up"><span class="arrow">W</span><span id="ioWrite">0 B/s</span></div>
+
+      <div class="drive" id="drive">
+        <div class="drive-head"><b id="driveName">&mdash;</b><span id="driveFree"></span></div>
+        <div class="bar"><i id="driveBar" style="width:0%"></i></div>
+        <div class="meta"><span id="driveText">&mdash;</span></div>
+      </div>
+      <div class="dots" id="driveDots"></div>
+    </div>
+
+
+  </section>
+
+  <!-- ------------------------------------------- right: top processes -->
+  <section class="col col-right">
+    <div class="card fill">
+      <div class="seg" id="procTabs">
+        <button class="seg-btn active" data-metric="cpu">CPU</button>
+        <button class="seg-btn" data-metric="mem">RAM</button>
+      </div>
+      <div class="procs" id="procs"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Full-screen shortcut drawer -->
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-head">
+    <strong>Shortcuts</strong>
+    <button class="close" id="drawerClose" aria-label="Close">&times;</button>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="deck" id="deck"></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

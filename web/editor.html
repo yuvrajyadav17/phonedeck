@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhoneDeck &mdash; Editor</title>
+<link rel="stylesheet" href="/editor.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">PhoneDeck <span>editor</span></div>
+  <div class="bar-actions">
+    <span class="saved" id="savedState">loaded</span>
+    <a class="ghost" href="/" target="_blank" rel="noopener">Open dashboard</a>
+    <button class="primary" id="saveBtn">Save</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ------------------------------------------------ groups + buttons -->
+  <aside class="pane left">
+    <div class="pane-head">
+      <h2>Top bar</h2>
+      <span class="hint-sm">4 slots</span>
+    </div>
+    <ul class="list" id="slotList"></ul>
+
+    <div class="pane-head" style="margin-top:18px">
+      <h2>Groups</h2>
+      <button class="mini" id="addGroup" title="Add group">+</button>
+    </div>
+    <ul class="list" id="groupList"></ul>
+
+    <div class="pane-head" style="margin-top:18px">
+      <h2>Buttons</h2>
+      <button class="mini" id="addButton" title="Add button">+</button>
+    </div>
+    <ul class="list" id="buttonList"></ul>
+  </aside>
+
+  <!-- ------------------------------------------------------- properties -->
+  <main class="pane right" id="props">
+    <div class="placeholder" id="placeholder">
+      Select a button on the left, or add a new one.
+    </div>
+
+    <form id="form" hidden autocomplete="off">
+
+      <fieldset id="fsSlot" hidden>
+        <legend>Top-bar slot</legend>
+        <div class="row">
+          <label>Label <small>(shown as a tooltip)</small>
+            <input id="sLabel" type="text" placeholder="Claude"></label>
+          <img id="sPreview" class="icon-preview" alt="">
+        </div>
+        <div class="row">
+          <label class="grow">Icon source <small>&mdash; optional; defaults to the launched .exe.
+            For a Microsoft Store app use <code>appx:&lt;PackageName&gt;|&lt;relative asset&gt;</code></small>
+            <input id="sIcon" type="text"
+                   placeholder="appx:Claude|Assets\Square150x150Logo.scale-200.png"></label>
+        </div>
+        <div class="row end">
+          <button type="button" class="danger" id="clearSlot">Clear this slot</button>
+        </div>
+      </fieldset>
+
+      <fieldset id="fsGroup">
+        <legend>Group</legend>
+        <div class="row">
+          <label>Name<input id="gName" type="text" placeholder="Apps"></label>
+          <label class="narrow">Icon<input id="gIcon" type="text" maxlength="4" placeholder="&#128421;"></label>
+          <button type="button" class="danger" id="delGroup">Delete group</button>
+        </div>
+      </fieldset>
+
+      <fieldset id="fsButton">
+        <legend>Button</legend>
+        <div class="row">
+          <label>Label<input id="bLabel" type="text" placeholder="Notepad"></label>
+          <label class="narrow">Icon<input id="bIcon" type="text" maxlength="4" placeholder="&#128221;"></label>
+          <label class="narrow">Colour<input id="bColor" type="color" value="#4c8dff"></label>
+        </div>
+        <div class="row">
+          <label class="grow">Id <small>(used by the API; must be unique)</small>
+            <input id="bId" type="text" placeholder="notepad"></label>
+        </div>
+        <div class="row">
+          <label class="check">
+            <input id="bConfirm" type="checkbox">
+            Ask on the phone before running <small>&mdash; for anything destructive</small>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Action</legend>
+        <div class="row">
+          <label>Type
+            <select id="aType">
+              <option value="app">Launch app / file / folder</option>
+              <option value="aumid">Launch Microsoft Store app</option>
+              <option value="urls">Open website(s)</option>
+              <option value="hotkey">Send hotkey</option>
+              <option value="text">Type text</option>
+              <option value="command">Run CMD command</option>
+              <option value="powershell">Run PowerShell</option>
+              <option value="macro">Recorded macro</option>
+              <option value="chain">Chain of steps</option>
+            </select>
+          </label>
+          <button type="button" class="ghost" id="testBtn">Test now</button>
+        </div>
+
+        <!-- single-value action bodies -->
+        <div class="body" id="bodyApp">
+          <label>Path or command
+            <input id="aTarget" type="text" placeholder="notepad.exe   or   %USERPROFILE%\Downloads"></label>
+          <label>Arguments <small>(space separated, optional)</small>
+            <input id="aArgs" type="text" placeholder=""></label>
+        </div>
+
+        <div class="body" id="bodyUrls" hidden>
+          <label>Websites in this group <small>&mdash; one per line. The button's
+            label is the group name, and you can have as many groups as you like.</small>
+            <textarea id="aUrls" rows="5" placeholder="https://github.com&#10;https://mail.google.com"></textarea></label>
+          <div class="row">
+            <label class="check">
+              <input id="aNewWindow" type="checkbox" checked>
+              Open the group in its own browser window
+            </label>
+          </div>
+          <div class="row">
+            <label>Browser <small>&mdash; blank uses your default</small>
+              <input id="aBrowser" type="text"
+                     placeholder="%LOCALAPPDATA%\Perplexity\Comet\Application\comet.exe"></label>
+            <label class="narrow">Profile <small>dir name</small>
+              <input id="aProfile" type="text" placeholder="Profile 3"></label>
+          </div>
+          <p class="help">
+            Chromium's own coloured tab groups cannot be created from outside the
+            browser &mdash; there is no command-line switch for them. A dedicated
+            window is the working equivalent.
+          </p>
+        </div>
+
+        <div class="body" id="bodyHotkey" hidden>
+          <div class="row">
+            <label class="grow">Keys
+              <input id="aKeys" type="text" placeholder="ctrl+shift+esc"></label>
+            <label class="narrow">Repeat<input id="aRepeat" type="number" min="1" max="50" value="1"></label>
+          </div>
+          <p class="help">
+            Modifiers: <code>ctrl shift alt win</code>.
+            Named keys: <code>enter esc tab space delete f1&hellip;f24 left up right down</code>,
+            <code>media_play_pause media_next media_prev volume_up volume_down volume_mute</code>.
+          </p>
+        </div>
+
+        <div class="body" id="bodyText" hidden>
+          <label>Text to type
+            <textarea id="aText" rows="4" placeholder="your@email.com"></textarea></label>
+        </div>
+
+        <div class="body" id="bodyCommand" hidden>
+          <label>Command
+            <textarea id="aCommand" rows="4" placeholder="ipconfig /flushdns"></textarea></label>
+        </div>
+
+        <div class="body" id="bodyMacro" hidden>
+          <div class="row">
+            <button type="button" class="primary" id="macroRecord">&#9679; Record</button>
+            <button type="button" class="danger" id="macroStop" disabled>&#9632; Stop</button>
+            <span class="hint-sm" id="macroStatus">nothing recorded yet</span>
+          </div>
+          <div class="row">
+            <label class="narrow">Speed <small>&times;</small>
+              <input id="aSpeed" type="number" min="0.1" max="10" step="0.1" value="1"></label>
+          </div>
+          <p class="help">
+            Recording captures keystrokes, clicks and drags <b>system-wide</b> until
+            you press Stop &mdash; so do not type passwords while it is running.
+            Playback clicks the same screen positions, so it breaks if the windows
+            it used have moved. You can also stop the recording from the phone,
+            which avoids capturing the click on Stop.
+          </p>
+        </div>
+
+        <!-- chain builder -->
+        <div class="body" id="bodyChain" hidden>
+          <div class="steps" id="steps"></div>
+          <button type="button" class="ghost" id="addStep">+ Add step</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="advanced">
+        <legend>Raw JSON <small>(advanced &mdash; edits above overwrite this)</small></legend>
+        <textarea id="rawJson" rows="7" spellcheck="false"></textarea>
+        <button type="button" class="ghost" id="applyRaw">Apply JSON</button>
+      </fieldset>
+
+      <div class="row end">
+        <button type="button" class="danger" id="delButton">Delete button</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script src="/editor.js"></script>
+</body>
+</html>

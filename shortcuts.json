@@ -1,0 +1,384 @@
+{
+  "groups": [
+    {
+      "buttons": [
+        {
+          "action": {
+            "target": "notepad.exe",
+            "type": "app"
+          },
+          "color": "#4c8dff",
+          "icon": "📝",
+          "id": "notepad",
+          "label": "Notepad"
+        },
+        {
+          "action": {
+            "target": "calc.exe",
+            "type": "app"
+          },
+          "color": "#4c8dff",
+          "icon": "🧮",
+          "id": "calc",
+          "label": "Calculator"
+        },
+        {
+          "action": {
+            "target": "%USERPROFILE%\\Downloads",
+            "type": "app"
+          },
+          "color": "#f0a94c",
+          "icon": "📁",
+          "id": "explorer",
+          "label": "Downloads"
+        },
+        {
+          "action": {
+            "target": "%USERPROFILE%\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\PhoneDeck Editor.lnk",
+            "type": "app"
+          },
+          "color": "#4c8dff",
+          "icon": "⭐",
+          "id": "PhoneDeck",
+          "label": "PhoneDeclk"
+        },
+        {
+          "id": "button",
+          "label": "SciCode Review",
+          "icon": "🔍",
+          "color": "#4c8dff",
+          "action": {
+            "type": "app",
+            "target": "%USERPROFILE%\\Desktop\\Turing\\SciCode\\SciCode\\review_notebook"
+          }
+        }
+      ],
+      "icon": "🖥",
+      "id": "apps",
+      "name": "Apps"
+    },
+    {
+      "buttons": [
+        {
+          "action": {
+            "keys": "ctrl+c",
+            "type": "hotkey"
+          },
+          "color": "#38b48b",
+          "icon": "📋",
+          "id": "copy",
+          "label": "Copy"
+        },
+        {
+          "action": {
+            "keys": "ctrl+v",
+            "type": "hotkey"
+          },
+          "color": "#38b48b",
+          "icon": "📌",
+          "id": "paste",
+          "label": "Paste"
+        },
+        {
+          "action": {
+            "keys": "ctrl+x",
+            "type": "hotkey"
+          },
+          "color": "#38b48b",
+          "icon": "✂",
+          "id": "cut",
+          "label": "Cut"
+        },
+        {
+          "action": {
+            "keys": "ctrl+z",
+            "type": "hotkey"
+          },
+          "color": "#38b48b",
+          "icon": "↩",
+          "id": "undo",
+          "label": "Undo"
+        },
+        {
+          "action": {
+            "keys": "ctrl+a",
+            "type": "hotkey"
+          },
+          "color": "#38b48b",
+          "icon": "⬚",
+          "id": "selectall",
+          "label": "Select All"
+        },
+        {
+          "action": {
+            "keys": "ctrl+s",
+            "type": "hotkey"
+          },
+          "color": "#38b48b",
+          "icon": "💾",
+          "id": "save",
+          "label": "Save"
+        }
+      ],
+      "icon": "✂",
+      "id": "edit",
+      "name": "Edit"
+    },
+    {
+      "buttons": [
+        {
+          "action": {
+            "keys": "media_play_pause",
+            "type": "hotkey"
+          },
+          "color": "#b57bee",
+          "icon": "⏯",
+          "id": "playpause",
+          "label": "Play / Pause"
+        },
+        {
+          "action": {
+            "keys": "media_next",
+            "type": "hotkey"
+          },
+          "color": "#b57bee",
+          "icon": "⏭",
+          "id": "next",
+          "label": "Next"
+        },
+        {
+          "action": {
+            "keys": "media_prev",
+            "type": "hotkey"
+          },
+          "color": "#b57bee",
+          "icon": "⏮",
+          "id": "prev",
+          "label": "Previous"
+        },
+        {
+          "action": {
+            "keys": "volume_up",
+            "repeat": 4,
+            "type": "hotkey"
+          },
+          "color": "#b57bee",
+          "icon": "🔊",
+          "id": "volup",
+          "label": "Vol +"
+        },
+        {
+          "action": {
+            "keys": "volume_down",
+            "repeat": 4,
+            "type": "hotkey"
+          },
+          "color": "#b57bee",
+          "icon": "🔉",
+          "id": "voldown",
+          "label": "Vol -"
+        },
+        {
+          "action": {
+            "keys": "volume_mute",
+            "type": "hotkey"
+          },
+          "color": "#b57bee",
+          "icon": "🔇",
+          "id": "mute",
+          "label": "Mute"
+        }
+      ],
+      "icon": "🎵",
+      "id": "media",
+      "name": "Media"
+    },
+    {
+      "buttons": [
+        {
+          "action": {
+            "targets": [
+              "https://mail.google.com",
+              "https://calendar.google.com",
+              "https://news.ycombinator.com"
+            ],
+            "type": "urls"
+          },
+          "color": "#e2617a",
+          "icon": "☕",
+          "id": "morning",
+          "label": "Morning Tabs"
+        },
+        {
+          "action": {
+            "targets": [
+              "https://github.com"
+            ],
+            "type": "urls"
+          },
+          "color": "#e2617a",
+          "icon": "🐙",
+          "id": "github",
+          "label": "GitHub"
+        }
+      ],
+      "icon": "🌐",
+      "id": "web",
+      "name": "Web"
+    },
+    {
+      "buttons": [
+        {
+          "action": {
+            "target": "rundll32 user32.dll,LockWorkStation",
+            "type": "command"
+          },
+          "color": "#7b8794",
+          "icon": "🔒",
+          "id": "lock",
+          "label": "Lock PC"
+        },
+        {
+          "action": {
+            "state": "toggle",
+            "type": "awake"
+          },
+          "color": "#7b8794",
+          "icon": "☕",
+          "id": "keepawake",
+          "label": "Keep Awake"
+        },
+        {
+          "action": {
+            "type": "wake_display"
+          },
+          "color": "#7b8794",
+          "icon": "💡",
+          "id": "wakescreen",
+          "label": "Wake Screen"
+        },
+        {
+          "action": {
+            "keys": "win+d",
+            "type": "hotkey"
+          },
+          "color": "#7b8794",
+          "icon": "🖥",
+          "id": "showdesktop",
+          "label": "Show Desktop"
+        },
+        {
+          "action": {
+            "type": "close_all"
+          },
+          "color": "#e2617a",
+          "confirm": "Close all open applications?",
+          "icon": "✖",
+          "id": "closeall",
+          "label": "Close All"
+        },
+        {
+          "action": {
+            "delay": 15,
+            "mode": "restart",
+            "type": "power"
+          },
+          "color": "#e2617a",
+          "confirm": "Restart this PC?",
+          "icon": "🔁",
+          "id": "restart",
+          "label": "Restart"
+        },
+        {
+          "action": {
+            "delay": 15,
+            "mode": "shutdown",
+            "type": "power"
+          },
+          "color": "#e2617a",
+          "confirm": "Shut down this PC?",
+          "icon": "⏻",
+          "id": "shutdown",
+          "label": "Shut Down"
+        },
+        {
+          "action": {
+            "mode": "abort",
+            "type": "power"
+          },
+          "color": "#38b48b",
+          "icon": "⛔",
+          "id": "cancelshutdown",
+          "label": "Cancel Shutdown"
+        },
+        {
+          "action": {
+            "steps": [
+              {
+                "target": "Get-ChildItem $env:TEMP -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue",
+                "type": "powershell"
+              },
+              {
+                "ms": 300,
+                "type": "delay"
+              },
+              {
+                "target": "Temp folder cleared",
+                "type": "notify"
+              }
+            ],
+            "type": "chain"
+          },
+          "color": "#7b8794",
+          "icon": "🧹",
+          "id": "emptytemp",
+          "label": "Clear Temp"
+        }
+      ],
+      "icon": "⚙",
+      "id": "system",
+      "name": "System"
+    }
+  ],
+  "topbar": [
+    {
+      "action": {
+        "target": "Claude_pzs8sxrjxfjjc!Claude",
+        "type": "aumid"
+      },
+      "icon_source": "appx:Claude|Assets\\Square150x150Logo.scale-200.png",
+      "id": "slot1",
+      "label": "Claude"
+    },
+    {
+      "action": {
+        "args": [
+          "--profile-directory=Profile 3"
+        ],
+        "target": "%LOCALAPPDATA%\\Perplexity\\Comet\\Application\\comet.exe",
+        "type": "app"
+      },
+      "id": "slot2",
+      "label": "Comet — Yuvraj(Turing)"
+    },
+    {
+      "action": {
+        "target": "91750D7E.Slack_8she8kybcnzg4!Slack",
+        "type": "aumid"
+      },
+      "icon_source": "appx:91750D7E.Slack|Assets\\SlackAppList.targetsize-512_altform-unplated.png",
+      "id": "slot3",
+      "label": "Slack"
+    },
+    {
+      "action": {
+        "target": "5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App",
+        "type": "aumid"
+      },
+      "icon_source": "appx:5319275A.WhatsAppDesktop|Assets\\AppList.targetsize-256_altform-unplated.png",
+      "id": "slot4",
+      "label": "WhatsApp"
+    }
+  ],
+  "version": 1
+}

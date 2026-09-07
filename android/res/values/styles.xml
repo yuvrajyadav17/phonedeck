@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fullscreen and dark from the very first frame, so launching the app
+         never flashes a white window before the WebView paints. -->
+    <style name="PhoneDeckTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/pd_bg</item>
+        <item name="android:colorBackground">@color/pd_bg</item>
+        <item name="android:statusBarColor">@color/pd_bg</item>
+        <item name="android:navigationBarColor">@color/pd_bg</item>
+    </style>
+</resources>

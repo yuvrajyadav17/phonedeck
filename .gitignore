@@ -1,0 +1,13 @@
+# Local state: auth token, logs, captured screenshots
+.state/
+
+# Toolchain (Android SDK, ~1.5 GB) - re-downloadable, never commit
+.tools/
+
+# Build output and signing key
+android/build/
+android/phonedeck.keystore
+android/res/values/token.xml
+
+__pycache__/
+*.pyc

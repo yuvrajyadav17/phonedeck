@@ -236,7 +236,8 @@
           "color": "#7b8794",
           "icon": "🔒",
           "id": "lock",
-          "label": "Lock PC"
+          "label": "Lock PC",
+          "confirm": "Lock the PC? You can only unlock it at the machine."
         },
         {
           "action": {

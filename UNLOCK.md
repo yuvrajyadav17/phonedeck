@@ -18,17 +18,19 @@ firmware download anywhere in this process.
   Python 3.14.
 * Magisk v30.7 already on the phone (survives until the wipe; reinstalled after).
 
-## The three things only you can physically do
+## The two things only you can physically do
 
-1. **Swap the USB driver with Zadig** (one-time, ~5 clicks). When the phone is
-   in BROM mode Windows shows a *MediaTek USB Port*; pyusb needs the
-   **libusb-win32** driver on it. Download Zadig (zadig.akeo.ie), and with the
-   phone in BROM mode: Options → List All Devices → pick the MediaTek port →
-   select **libusb-win32** → Replace/Install Driver.
+1. **Install UsbDk** (one-time, one double-click + a Windows admin prompt).
+   This is mtkclient's own recommended Windows driver — a single filter driver,
+   *no per-device picking*, so unlike Zadig it cannot break another USB device.
+   Installer is ready at `.tools\UsbDk_1.0.22_x64.msi` — double-click it, accept
+   the prompt. (Zadig at `.tools\zadig.exe` is kept only as a fallback.)
 2. **Enter BROM mode:** power the phone **off**, then hold **both Volume Up +
    Volume Down**, and while holding, plug the USB cable into the PC. The screen
-   stays black — that is correct; BROM is a black-screen mode.
-3. **Accept the wipe** — implicit in running the unlock command.
+   stays black — that is correct; BROM is a black-screen mode. Confirm with
+   `UsbDkController -n`, which should list a device with `0x0E8D 0x0003`.
+
+The wipe is not a separate action — it happens when the unlock command runs.
 
 ## What I run once the phone is in BROM (I can drive these)
 

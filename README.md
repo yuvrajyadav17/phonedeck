@@ -344,6 +344,7 @@ server/
   weather.py            Open-Meteo, on fixed coordinates
   notes.py              the notes / to-do list
   downloads.py          watches for downloads in progress
+  phonebattery.py       samples the phone's battery into a CSV
   bridge.py             adb watchdog: tunnel, wake, launch
   config.py             paths, token, default shortcuts
 web/

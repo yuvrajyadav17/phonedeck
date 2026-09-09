@@ -15,8 +15,8 @@ from flask import Flask, jsonify, request, send_file, send_from_directory
 from flask_sock import Sock
 
 from . import (actions, audio_out, claude, downloads, hotkeys, icons,
-               macros, notes, nowplaying, procscan, sensors, stats, voice,
-               weather)
+               macros, notes, nowplaying, phonebattery, procscan, sensors,
+               stats, voice, weather)
 from .bridge import Bridge
 from . import config
 from .config import (
@@ -354,6 +354,19 @@ def create_app() -> Flask:
     def api_device():
         return jsonify({"ok": True, "device": bridge.snapshot()})
 
+    @app.get("/api/phone/battery")
+    @guard
+    def api_phone_battery():
+        """The phone's own battery, and what the log says about it so far.
+
+        Charging cannot be stopped from here -- the kernel switches are
+        root-owned and this device has no root -- so the useful thing is to
+        know whether it is actually being held full. See phonebattery.py.
+        """
+        return jsonify({"ok": True,
+                        "now": phonebattery.phone_battery.snapshot(),
+                        "history": phonebattery.summarise()})
+
     @app.post("/api/device/relaunch")
     @guard
     def api_device_relaunch():
@@ -393,6 +406,7 @@ def main() -> None:
     nowplaying.now_playing.start()
     downloads.downloads.start()
     bridge.start()
+    phonebattery.phone_battery.start(lambda: bridge.snapshot()["serial"])
 
     log.info("PhoneDeck listening on http://%s:%s", HOST, PORT)
     log.info("Open in a desktop browser:  http://%s:%s/?t=%s", HOST, PORT, TOKEN)

@@ -710,6 +710,49 @@ the source amplitude.
 `window.__audioStats` carries the live figures -- fill, target, underruns,
 output peak -- so this is measurable rather than arguable.
 
+### Keeping the battery alive
+
+A phone plugged in permanently is a lithium cell held full and warm, which is
+how they swell. The obvious fix -- run from USB and leave the battery out of
+it -- **cannot be done on the CPH1859**, and the reason is worth writing down
+so nobody spends an evening rediscovering it.
+
+The kernel does expose exactly the right switches:
+
+```
+/sys/class/power_supply/battery/mmi_charging_enable    rw- root root
+/sys/class/power_supply/battery/stop_charging_enable   rw- root root
+```
+
+But adb runs as uid 2000 (`shell`), `su` does not exist, and the bootloader is
+locked (`ro.boot.flash.locked = 1`, `verifiedbootstate = green`). Writing
+either node is a flat permission denial.
+
+`adb shell dumpsys battery unplug` looks like the way round it and is not. It
+flips the *framework's* idea of being plugged in -- `USB powered: false`
+appears immediately -- while the charger IC carries on regardless. Measured
+during the test, the current stayed at **+70 mA** the whole time. The
+framework flag is cosmetic; the hardware decides.
+
+**What the measurements actually showed**, which changes the picture: the port
+enumerates at 500 mA, and the dashboard with the screen on draws more than
+that. The level sat at 76% with the current swinging between **+110 mA and
+-109 mA** -- the battery is being trickled and drained in turn, never filled.
+A phone that cannot reach 100% is not a phone being held at 100%, and 33 °C is
+mild. The worst case may simply not apply here.
+
+That is a hypothesis from minutes of data, not a conclusion, so
+`server/phonebattery.py` samples the phone once a minute into
+`.state/battery.csv` and `/api/phone/battery` reports what it has seen --
+including `percent_of_time_at_90_plus`, which is the number that decides
+whether any of this needs fixing at all.
+
+If a day of logging shows it does pin high, two options remain, in order of
+sanity: cap the screen brightness so the phone's own draw holds the level down
+(the port is current-limited, so consumption is a usable regulator), or root
+via the MediaTek BROM exploit and write to `stop_charging_enable` properly.
+The second is the real fix and carries a real risk of bricking.
+
 ### Is Python the problem?
 
 It was reasonable to ask, and the answer is a useful one: **no, and the

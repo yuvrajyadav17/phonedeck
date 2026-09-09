@@ -274,18 +274,18 @@ html, body {
 
   .board { flex: 1; min-height: 0; overflow: hidden; }
 
-  /* The pager is two board-widths wide; each page fills the board exactly. */
+  /* Three board-widths wide; each page fills the board exactly. */
   .pager {
-    width: 200%; height: 100%;
+    width: 300%; height: 100%;
     transition: transform .28s ease;
   }
   .page {
-    width: 50%; height: 100%;
+    width: 33.3333%; height: 100%;
     display: grid; grid-gap: 8px;
   }
-  /* Page 1: components | fixed | essentials.  Page 2: processes | drives. */
-  .page:first-child { grid-template-columns: 1.45fr 0.8fr 1.3fr; }
-  .page:last-child  { grid-template-columns: 1.7fr 1fr; }
+  .page-essentials { grid-template-columns: 0.85fr 1.15fr; }
+  .page-system     { grid-template-columns: 1.45fr 0.8fr 1.3fr; }
+  .page-downloads  { grid-template-columns: 1fr; }
 
   /* min-height:0 is what actually lets a grid child scroll instead of
      stretching its track to fit the content. */
@@ -293,9 +293,10 @@ html, body {
   .col-left  { overflow-y: auto; }          /* independent scroll */
   .col-mid   { overflow: hidden; }          /* locked, as designed */
   .col-right { overflow: hidden; display: flex; flex-direction: column; }
-  .col-procs, .col-drives {
+  .col-e1, .col-e2, .col-dl {
     overflow: hidden; display: flex; flex-direction: column;
   }
+  .col-e1 { overflow-y: auto; }
   .card.fill { flex: 1; min-height: 0; }
 }
 
@@ -310,8 +311,10 @@ html, body {
   .board { overflow: visible; }
   .pager { width: 100%; transform: none !important; }
   .page { width: 100%; padding: 12px; }
-  .board[data-page="0"] .page:last-child,
-  .board[data-page="1"] .page:first-child { display: none; }
+  .page { display: none; }
+  .board[data-page="0"] .page-essentials,
+  .board[data-page="1"] .page-system,
+  .board[data-page="2"] .page-downloads { display: block; }
   .col { margin-bottom: 12px; }
   .col:last-child { margin-bottom: 0; }
 
@@ -404,6 +407,70 @@ html, body {
 .dv .bar > i { background: var(--ok); }
 .dv .bar > i.warn { background: var(--warn); }
 .dv .bar > i.bad  { background: var(--bad); }
+
+
+/* ------------------------------------------------ downloads chip ----- */
+/* Sits in the top bar only while something is actually downloading. */
+.t-dl {
+  background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 9px 2px 7px;
+  margin-left: 14px; cursor: pointer;
+  color: var(--text); font: inherit; font-size: 12px;
+  display: flex; align-items: center; white-space: nowrap;
+}
+.t-dl:active { transform: scale(.94); }
+.t-dl .dl-arrow {
+  color: var(--ok); font-style: normal; margin-right: 5px;
+  animation: nudge 1.2s ease-in-out infinite;
+}
+@keyframes nudge { 0%, 100% { transform: translateY(-1px); }
+                   50% { transform: translateY(2px); } }
+.t-dl b { color: var(--ok); font-weight: 650; }
+.t-dl span { color: var(--muted); font-size: 10px; margin-left: 6px; }
+
+/* ---------------------------------------------------- notes / to-do -- */
+.card.notes { border-left-color: var(--warn); }
+.edit-btn {
+  background: var(--card-2); border: 1px solid var(--line); color: var(--muted);
+  border-radius: 7px; padding: 3px 9px; font: inherit; font-size: 10.5px;
+  cursor: pointer;
+}
+.edit-btn:active { transform: scale(.94); }
+.notes-list { overflow-y: auto; min-height: 0; margin-top: 7px; flex: 1; }
+.note {
+  display: flex; align-items: flex-start;
+  padding: 6px 0; border-top: 1px solid var(--line);
+}
+.note:first-child { border-top: 0; }
+/* A generous target: this is tapped on glass at arm's length. */
+.note .tick {
+  width: 20px; height: 20px; flex: none; margin-right: 9px;
+  border: 2px solid var(--line); border-radius: 50%;
+  cursor: pointer; position: relative; top: 1px;
+}
+.note .tick:active { border-color: var(--ok); background: rgba(56,180,139,.25); }
+.note .text { font-size: 12.5px; line-height: 1.45; word-break: break-word; }
+.note.doing { opacity: .35; }
+.notes-empty { color: var(--muted); font-size: 12px; padding: 14px 0;
+  text-align: center; }
+
+/* ----------------------------------------------------- downloads ----- */
+.dl-list { overflow-y: auto; min-height: 0; margin-top: 7px; flex: 1; }
+.dl {
+  padding: 7px 0; border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: 1fr auto auto; grid-gap: 10px;
+  align-items: baseline;
+}
+.dl:first-child { border-top: 0; }
+.dl .dl-name { font-size: 12.5px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.dl .dl-size { font-size: 11px; color: var(--muted);
+  font-variant-numeric: tabular-nums; }
+.dl .dl-rate { font-size: 11.5px; color: var(--ok);
+  font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; }
+.dl.stalled .dl-rate { color: var(--muted); }
+.dl-empty { color: var(--muted); font-size: 12px; padding: 20px 0;
+  text-align: center; }
 
 /* ============================================================ drawer ==== */
 .drawer {

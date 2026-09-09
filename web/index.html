@@ -9,11 +9,13 @@
 </head>
 <body>
 
-<!-- One markup for both orientations. CSS decides whether the columns sit side
-     by side (landscape) or stack into a scrolling page (portrait).
+<!-- Three pages, slid horizontally.
 
-     Two pages, swiped horizontally. Page 1 holds what is worth seeing without
-     touching anything; page 2 holds the detail you go looking for. -->
+     Page 1  essentials    what is worth seeing without touching anything
+     Page 2  system        the machine, for when you go looking
+     Page 3  downloads     no swipe reaches it; only the top-bar indicator,
+                           which itself only appears while something is
+                           actually downloading -->
 
 <header class="topbar">
   <div class="brand">
@@ -21,8 +23,6 @@
     <span class="uptime">UP <b id="uptime">00:00:00</b></span>
   </div>
 
-  <!-- Temperatures and the quick-launch logos travel together, so that in
-       portrait they can drop to a second row as one unit. -->
   <div class="bar-tools">
     <div class="temps">
       <div class="temp t-cpu">
@@ -36,14 +36,19 @@
         <b id="gpuTemp">--</b><span class="deg">&deg;C</span>
       </div>
 
-      <!-- Claude activity light. Colour and text are set from the tracker. -->
       <div class="temp t-claude" id="claudeLed" title="Claude">
         <i class="tdot" id="claudeDot"></i>
         <b id="claudeState">off</b>
       </div>
+
+      <!-- Appears only while something is downloading; tapping opens page 3. -->
+      <button class="temp t-dl" id="dlChip" hidden title="Downloads">
+        <i class="dl-arrow">&#8595;</i>
+        <b id="dlCount">0</b>
+        <span id="dlRate"></span>
+      </button>
     </div>
 
-    <!-- Logo-only launchers, filled in from shortcuts.json -->
     <div class="launch" id="launch"></div>
   </div>
 
@@ -61,10 +66,50 @@
  <div class="pager" id="pager">
 
   <!-- =============================================== PAGE 1: essentials -->
-  <div class="page">
+  <div class="page page-essentials">
+
+    <section class="col col-e1">
+      <div class="card clock">
+        <div class="time" id="clockTime">--:--</div>
+        <div class="date" id="clockDate">&mdash;</div>
+      </div>
+
+      <div class="card wx">
+        <div class="wx-now">
+          <span class="wx-sym" id="wxSymbol">&bull;</span>
+          <span class="wx-temp" id="wxTemp">--&deg;</span>
+          <span class="wx-side">
+            <b id="wxLabel">&mdash;</b>
+            <span id="wxFeels"></span>
+          </span>
+        </div>
+        <div class="meta"><span id="wxRange">&mdash;</span><span id="wxRain"></span></div>
+        <div class="meta"><span id="wxPlace">&mdash;</span><span id="wxWind"></span></div>
+      </div>
+
+      <div class="card np" id="npCard">
+        <div class="card-head"><h3>PLAYING</h3><span class="hint" id="npSource"></span></div>
+        <div class="np-title" id="npTitle">nothing playing</div>
+        <div class="np-artist" id="npArtist"></div>
+      </div>
+    </section>
+
+    <section class="col col-e2">
+      <div class="card fill notes">
+        <div class="card-head">
+          <h3>NOTES &amp; TO-DO</h3>
+          <button class="edit-btn" id="notesEdit" title="Open on the PC">edit &#9998;</button>
+        </div>
+        <div class="notes-list" id="notesList"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- =================================================== PAGE 2: system -->
+  <div class="page page-system">
 
     <section class="col col-left" id="colLeft">
-
       <div class="card a-cpu">
         <div class="card-head"><h2>CPU</h2><span class="big" id="cpuPct">0%</span></div>
         <div class="bar"><i id="cpuBar" style="width:0%"></i></div>
@@ -85,19 +130,17 @@
         <div class="meta"><span id="gpuName">&mdash;</span></div>
         <div class="meta"><span id="gpuVram">&mdash;</span><span id="gpuPower"></span></div>
       </div>
-
     </section>
 
     <section class="col col-mid">
-
       <div class="card">
         <h3>NETWORK</h3>
         <div class="rate down"><span class="arrow">&#8595;</span><span id="netDown">0 B/s</span></div>
         <div class="rate up"><span class="arrow">&#8593;</span><span id="netUp">0 B/s</span></div>
       </div>
 
-      <!-- Swipe across this card to page through the drives. Its own gesture
-           is stopped from also turning the dashboard page. -->
+      <!-- Its own swipe pages the drives, and is stopped from also turning
+           the dashboard page. -->
       <div class="card disk" id="diskCard">
         <h3>DISK I/O</h3>
         <div class="rate down"><span class="arrow">R</span><span id="ioRead">0 B/s</span></div>
@@ -110,43 +153,9 @@
         </div>
         <div class="dots" id="driveDots"></div>
       </div>
-
     </section>
 
-    <!-- The column the process list used to occupy. -->
     <section class="col col-right">
-
-      <div class="card clock">
-        <div class="time" id="clockTime">--:--</div>
-        <div class="date" id="clockDate">&mdash;</div>
-      </div>
-
-      <div class="card wx">
-        <div class="wx-now">
-          <span class="wx-sym" id="wxSymbol">•</span>
-          <span class="wx-temp" id="wxTemp">--&deg;</span>
-          <span class="wx-side">
-            <b id="wxLabel">&mdash;</b>
-            <span id="wxFeels"></span>
-          </span>
-        </div>
-        <div class="meta"><span id="wxRange">&mdash;</span><span id="wxRain"></span></div>
-        <div class="meta"><span id="wxPlace">&mdash;</span><span id="wxWind"></span></div>
-      </div>
-
-      <div class="card np" id="npCard">
-        <div class="card-head"><h3>PLAYING</h3><span class="hint" id="npSource"></span></div>
-        <div class="np-title" id="npTitle">nothing playing</div>
-        <div class="np-artist" id="npArtist"></div>
-      </div>
-
-    </section>
-  </div>
-
-  <!-- ================================================== PAGE 2: detail -->
-  <div class="page">
-
-    <section class="col col-procs">
       <div class="card fill">
         <div class="seg" id="procTabs">
           <button class="seg-btn active" data-metric="cpu">CPU</button>
@@ -156,13 +165,19 @@
       </div>
     </section>
 
-    <section class="col col-drives">
+  </div>
+
+  <!-- ================================================ PAGE 3: downloads -->
+  <div class="page page-downloads">
+    <section class="col col-dl">
       <div class="card fill">
-        <div class="card-head"><h3>DRIVES</h3><span class="hint">all volumes</span></div>
-        <div class="drives" id="drivesAll"></div>
+        <div class="card-head">
+          <h3>DOWNLOADS</h3>
+          <span class="hint" id="dlSummary"></span>
+        </div>
+        <div class="dl-list" id="dlList"></div>
       </div>
     </section>
-
   </div>
 
  </div>

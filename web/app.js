@@ -241,17 +241,37 @@
 
 
   // ========================================================== paging =====
+  /* Three pages exist, but only the first two are in the swipe rotation.
+     Downloads is reachable solely from the top-bar chip, which itself only
+     appears while something is actually downloading. */
   var page = 0;
+  var cameFrom = 0;
+  var PAGE_DOWNLOADS = 2;
 
   function setPage(n) {
-    page = Math.max(0, Math.min(1, n));
+    page = Math.max(0, Math.min(2, n));
     $("board").setAttribute("data-page", String(page));
     // Landscape slides; portrait swaps by display (see the stylesheet).
-    $("pager").style.transform = "translateX(" + (page * -50) + "%)";
+    $("pager").style.transform = "translateX(" + (page * -33.3333) + "%)";
     var dots = $("pageDots").children;
     for (var i = 0; i < dots.length; i++) {
       dots[i].className = i === page ? "on" : "";
     }
+  }
+
+  function swipePage(direction) {
+    if (page === PAGE_DOWNLOADS) {
+      setPage(cameFrom);            // any swipe leaves downloads
+      return;
+    }
+    var next = page + direction;
+    if (next < 0 || next > 1) return;
+    setPage(next);
+  }
+
+  function openDownloads() {
+    if (page !== PAGE_DOWNLOADS) cameFrom = page;
+    setPage(PAGE_DOWNLOADS);
   }
 
   (function bindPageSwipe() {
@@ -271,11 +291,135 @@
       var touch = e.changedTouches[0];
       var dx = touch.clientX - startX;
       var dy = touch.clientY - startY;
-      // Horizontal intent only; a vertical drag is a scroll.
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
-      setPage(page + (dx < 0 ? 1 : -1));
+      swipePage(dx < 0 ? 1 : -1);
     }, { passive: true });
   })();
+
+  $("dlChip").onclick = openDownloads;
+
+  // ============================================================ sound =====
+  /* A short tone, generated rather than loaded, so there are no audio files to
+     ship. Browsers keep an AudioContext suspended until the user has touched
+     the page at least once, so the first tap unlocks it. */
+  var audioCtx = null;
+  var audioReady = false;
+
+  function unlockAudio() {
+    try {
+      if (!audioCtx) {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        audioCtx = new Ctx();
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      audioReady = true;
+    } catch (e) { /* no audio on this device */ }
+  }
+  document.addEventListener("touchstart", unlockAudio, { passive: true });
+  document.addEventListener("click", unlockAudio);
+
+  function tone(freq, ms, delay) {
+    if (!audioReady || !audioCtx) return;
+    setTimeout(function () {
+      try {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        // A short fade stops the click you get from cutting a tone dead.
+        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001,
+          audioCtx.currentTime + ms / 1000);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + ms / 1000 + 0.02);
+      } catch (e) { /* ignore */ }
+    }, delay || 0);
+  }
+
+  function chime(kind) {
+    if (kind === "done")    { tone(880, 130); tone(1320, 160, 150); }
+    else if (kind === "ask") { tone(660, 180); }
+    else if (kind === "bad") { tone(320, 260); }
+  }
+
+  // ============================================================ notes =====
+  function renderNotes(items) {
+    var box = $("notesList");
+    items = items || [];
+    if (!items.length) {
+      box.innerHTML = '<div class="notes-empty">Nothing to do.<br>'
+                    + "Tap <b>edit</b> to add something.</div>";
+      return;
+    }
+    box.innerHTML = "";
+    items.forEach(function (item) {
+      var row = document.createElement("div");
+      row.className = "note";
+      row.innerHTML = '<span class="tick"></span><span class="text"></span>';
+      row.querySelector(".text").textContent = item.text;
+      row.querySelector(".tick").onclick = function () {
+        if (row.className.indexOf("doing") >= 0) return;
+        row.className = "note doing";
+        api("/api/notes/" + encodeURIComponent(item.id) + "/done",
+            { method: "POST" })
+          .then(function (r) {
+            if (r.ok) { row.parentNode.removeChild(row); }
+            else { row.className = "note"; toast(r.error || "failed", "bad"); }
+          })
+          .catch(function (e) { row.className = "note"; toast(e.message, "bad"); });
+      };
+      box.appendChild(row);
+    });
+  }
+
+  $("notesEdit").onclick = function () {
+    api("/api/notes/edit", { method: "POST" })
+      .then(function (r) {
+        toast(r.ok ? "Notes open on the PC" : (r.error || "failed"),
+              r.ok ? "ok" : "bad");
+      })
+      .catch(function (e) { toast(e.message, "bad"); });
+  };
+
+  // ======================================================== downloads =====
+  var lastFinishedAt = 0;
+
+  function renderDownloads(d) {
+    if (!d) return;
+    var chip = $("dlChip");
+
+    // The chip exists only while something is in flight.
+    chip.hidden = d.count === 0;
+    $("dlCount").textContent = d.count;
+    $("dlRate").textContent = d.total_rate > 0 ? d.total_rate_h : "";
+
+    $("dlSummary").textContent = d.count
+      ? d.count + (d.count === 1 ? " file" : " files") + " · " + d.total_rate_h
+      : "";
+
+    var html = "";
+    (d.items || []).forEach(function (item) {
+      html += '<div class="dl' + (item.growing ? "" : " stalled") + '">'
+            +   '<div class="dl-name">' + esc(item.name) + "</div>"
+            +   '<div class="dl-size">' + esc(item.size_h) + "</div>"
+            +   '<div class="dl-rate">' + (item.growing ? esc(item.rate_h) : "paused")
+            +   "</div></div>";
+    });
+    $("dlList").innerHTML = html
+      || '<div class="dl-empty">Nothing downloading.</div>';
+
+    // Chime once when a transfer ends, and step off the page if it is empty.
+    if (lastFinishedAt && d.finished_at > lastFinishedAt) {
+      chime("done");
+      toast("Download finished", "ok");
+      if (page === PAGE_DOWNLOADS && d.count === 0) setPage(cameFrom);
+    }
+    lastFinishedAt = d.finished_at;
+  }
 
   // =========================================================== clock =====
   /* Ticks from the phone's own clock rather than the server: it updates every
@@ -322,23 +466,6 @@
     $("npTitle").textContent = np.title || "—";
     $("npArtist").textContent = np.artist || "";
     $("npSource").textContent = np.source || "";
-  }
-
-  // ================================================ drives (page 2) =====
-  function renderDrivesAll(disks) {
-    var html = "";
-    (disks || []).forEach(function (d) {
-      var cls = d.percent >= 90 ? "bad" : d.percent >= 75 ? "warn" : "";
-      html += '<div class="dv">'
-            +   '<div class="dv-head"><b>' + esc(d.device) + "</b>"
-            +   "<span>" + esc(d.free_h) + " free</span></div>"
-            +   '<div class="bar"><i class="' + cls + '" style="width:'
-            +   d.percent + '%"></i></div>'
-            +   '<div class="dv-head"><span>' + esc(d.used_h) + " / "
-            +   esc(d.total_h) + "</span><span>" + d.percent + "%</span></div>"
-            + "</div>";
-    });
-    $("drivesAll").innerHTML = html;
   }
 
   // ------------------------------------------------------------- apply --
@@ -395,9 +522,10 @@
     $("ioWrite").textContent = s.disk_io.write_per_s_h;
 
     renderDrive(s.disks, s.disk_io);
-    renderDrivesAll(s.disks);
     renderWeather(s.weather);
     renderNowPlaying(s.now_playing);
+    renderNotes(s.notes);
+    renderDownloads(s.downloads);
     if (s.processes) renderProcs(s.processes);
   }
 

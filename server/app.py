@@ -12,8 +12,8 @@ from typing import Any, Callable
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
-from . import (actions, claude, icons, macros, nowplaying, sensors,
-               stats, weather)
+from . import (actions, claude, downloads, icons, macros, notes,
+               nowplaying, sensors, stats, weather)
 from .bridge import Bridge
 from . import config
 from .config import (
@@ -193,6 +193,59 @@ def create_app() -> Flask:
     def api_macro_status():
         return jsonify({"ok": True, **macros.recorder.status()})
 
+    # ------------------------------------------------------------ notes ----
+    @app.get("/notes")
+    def notes_page():
+        return send_from_directory(WEB_DIR, "notes.html")
+
+    @app.get("/api/notes")
+    @guard
+    def api_notes():
+        return jsonify({"ok": True, **notes.load()})
+
+    @app.get("/api/notes/text")
+    @guard
+    def api_notes_text():
+        """The list as plain lines, for the editor window."""
+        return jsonify({"ok": True, "text": notes.as_text()})
+
+    @app.put("/api/notes/text")
+    @guard
+    def api_notes_save():
+        payload = request.get_json(silent=True) or {}
+        text = payload.get("text")
+        if not isinstance(text, str):
+            return jsonify({"ok": False, "error": "expected 'text'"}), 400
+        data = notes.from_text(text)
+        return jsonify({"ok": True, "count": len(data["items"])})
+
+    @app.post("/api/notes/<item_id>/done")
+    @guard
+    def api_notes_done(item_id: str):
+        """Ticked off on the phone. Done means gone."""
+        if not notes.remove(item_id):
+            return jsonify({"ok": False, "error": "no such item"}), 404
+        return jsonify({"ok": True, "message": "done"})
+
+    @app.post("/api/notes/edit")
+    @guard
+    def api_notes_edit():
+        """Open the notes window on the PC -- tapped from the phone."""
+        import subprocess
+        import sys as _sys
+        from pathlib import Path as _Path
+        pythonw = _Path(_sys.executable).with_name("pythonw.exe")
+        exe = str(pythonw if pythonw.exists() else _sys.executable)
+        try:
+            subprocess.Popen(
+                [exe, "notes_app.py"], cwd=str(config.ROOT),
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                | getattr(subprocess, "DETACHED_PROCESS", 0),
+                close_fds=True)
+        except OSError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 500
+        return jsonify({"ok": True, "message": "notes open on the PC"})
+
     @app.get("/api/device")
     @guard
     def api_device():
@@ -234,6 +287,7 @@ def main() -> None:
     weather.weather.start(config.WEATHER_LAT, config.WEATHER_LON,
                           config.WEATHER_PLACE)
     nowplaying.now_playing.start()
+    downloads.downloads.start()
     bridge.start()
 
     log.info("PhoneDeck listening on http://%s:%s", HOST, PORT)

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PhoneDeck &mdash; Notes</title>
+<style>
+  :root { --bg:#0d1219; --pane:#141b26; --line:#26313f; --text:#e8eef7;
+          --muted:#8394ab; --ok:#38b48b; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); height: 100vh;
+    display: flex; flex-direction: column;
+    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 12px 18px; border-bottom: 1px solid var(--line);
+    background: var(--pane); flex: none;
+  }
+  h1 { margin: 0; font-size: 15px; font-weight: 650; }
+  .hint { color: var(--muted); font-size: 12px; }
+  #saved { color: var(--muted); font-size: 12px; }
+  #saved.ok { color: var(--ok); }
+  textarea {
+    flex: 1; width: 100%; resize: none; border: 0; outline: 0;
+    background: var(--bg); color: var(--text);
+    padding: 16px 18px; font: 15px/1.9 ui-monospace, Consolas, monospace;
+  }
+  footer { padding: 8px 18px; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: 11.5px; flex: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Notes &amp; to-dos</h1>
+  <span class="hint">one per line &mdash; <span id="saved">saved</span></span>
+</header>
+
+<textarea id="text" spellcheck="false" placeholder="One item per line.
+
+Renew domain
+Call the bank
+Fix the kitchen tap"></textarea>
+
+<footer>Saves as you type. Just close the window when you are done &mdash; ticking an item off on the phone deletes it.</footer>
+
+<script>
+(function () {
+  "use strict";
+  var params = new URLSearchParams(location.search);
+  var token = params.get("t") || "";
+  var area = document.getElementById("text");
+  var saved = document.getElementById("saved");
+  var timer = null;
+  var lastSent = null;
+
+  function api(path, options) {
+    options = options || {};
+    options.headers = Object.assign(
+      { "X-PhoneDeck-Token": token, "Content-Type": "application/json" },
+      options.headers || {});
+    return fetch(path, options).then(function (r) { return r.json(); });
+  }
+
+  function mark(state) {
+    saved.textContent = state;
+    saved.className = state === "saved" ? "ok" : "";
+  }
+
+  function save() {
+    var text = area.value;
+    if (text === lastSent) return;
+    lastSent = text;
+    mark("saving…");
+    api("/api/notes/text", { method: "PUT", body: JSON.stringify({ text: text }) })
+      .then(function (r) { mark(r.ok ? "saved" : "not saved"); })
+      .catch(function () { mark("not saved"); });
+  }
+
+  // Debounced while typing, so a long note is not one request per keystroke.
+  area.addEventListener("input", function () {
+    mark("editing…");
+    clearTimeout(timer);
+    timer = setTimeout(save, 600);
+  });
+
+  // Closing the window should never lose the last few characters.
+  window.addEventListener("blur", save);
+  window.addEventListener("beforeunload", save);
+
+  api("/api/notes/text").then(function (r) {
+    area.value = r.text || "";
+    lastSent = area.value;
+    area.focus();
+    area.setSelectionRange(area.value.length, area.value.length);
+  });
+})();
+</script>
+</body>
+</html>

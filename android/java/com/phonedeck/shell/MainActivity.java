@@ -46,6 +46,8 @@ public class MainActivity extends Activity {
     private TextView banner;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean pageLoaded = false;
+    /** The last load ended on the WebView's error page. */
+    private boolean loadFailed = false;
     private Runnable pendingRetry;
 
     @Override
@@ -192,6 +194,15 @@ public class MainActivity extends Activity {
         view.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView v, String url) {
+                // The WebView fires this for its *own* error page as well, so
+                // "finished" alone does not mean "loaded". Trusting it here
+                // marked a failed load as successful, which stopped the retry
+                // timer and left the app stranded on "Webpage not available"
+                // for good -- even after the PC came back.
+                if (loadFailed) {
+                    scheduleRetry();
+                    return;
+                }
                 pageLoaded = true;
                 banner.setVisibility(View.GONE);
             }
@@ -202,6 +213,7 @@ public class MainActivity extends Activity {
                 // Sub-resource failures are noise; only a failed main document
                 // means we are actually disconnected.
                 if (request != null && request.isForMainFrame()) {
+                    loadFailed = true;
                     showDisconnected();
                 }
             }
@@ -210,6 +222,7 @@ public class MainActivity extends Activity {
 
     private void load() {
         cancelRetry();
+        loadFailed = false;
         banner.setText("Connecting to your PC…");
         banner.setVisibility(View.VISIBLE);
         web.loadUrl(HOST + "/?t=" + getString(R.string.pd_token));
@@ -229,7 +242,8 @@ public class MainActivity extends Activity {
         pendingRetry = new Runnable() {
             @Override public void run() {
                 pendingRetry = null;
-                if (!pageLoaded) {
+                if (!pageLoaded || loadFailed) {
+                    loadFailed = false;
                     web.loadUrl(HOST + "/?t=" + getString(R.string.pd_token));
                 }
             }

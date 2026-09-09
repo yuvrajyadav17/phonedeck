@@ -855,8 +855,24 @@ break the JSON, the editor will say so rather than silently losing your work.
 
 ### The dashboard says "offline" but the app is open
 
-The USB tunnel dropped. Unplug and replug; it re-establishes by itself within a
-few seconds.
+The page is still loaded; only its polls are failing. That happens when
+PhoneDeck is not running on the PC, or the USB tunnel dropped. It reconnects on
+its own as soon as the server answers again — start PhoneDeck, or unplug and
+replug the cable.
+
+The tunnel itself is now re-checked every few seconds rather than assumed to be
+alive, because restarting the adb server silently drops every tunnel while
+leaving the phone attached.
+
+### It says "Webpage not available" and stays there
+
+It should not any more. The app retries every 2.5 seconds and picks itself up
+once the PC answers, with nothing to do on the phone.
+
+If you are on a build from before that fix, this state was permanent: Android
+fires `onPageFinished` for its *own* error page, the app read that as a
+successful load, and the retry timer stood down. Rebuild with
+`android/build_apk.ps1 -Install -Launch`.
 
 ### A launched app opens behind my other windows
 

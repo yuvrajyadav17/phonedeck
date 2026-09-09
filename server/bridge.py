@@ -85,6 +85,15 @@ def setup_reverse(serial: str, port: int = PORT) -> bool:
         return False
 
 
+def has_reverse(serial: str, port: int = PORT) -> bool:
+    """Is the reverse tunnel actually present in adb's list?"""
+    try:
+        proc = _adb("-s", serial, "reverse", "--list")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return f"tcp:{port} tcp:{port}" in (proc.stdout or "")
+
+
 def wake_device(serial: str) -> None:
     """Turn the screen on and dismiss a swipe-only keyguard."""
     try:
@@ -225,9 +234,13 @@ class Bridge:
                 self._set(serial=serial, status="ready", reverse_ok=reverse_ok,
                           app_launched=launched, last_error=error)
             else:
-                # Steady state. The reverse tunnel is the one thing that can
-                # quietly drop, so re-assert it; adb treats it as idempotent.
-                if not self.state.reverse_ok:
+                # Steady state. The reverse tunnel can disappear without the
+                # device ever disconnecting -- restarting the adb server drops
+                # every tunnel while leaving the device attached -- so check
+                # that it is really still listed rather than trusting a flag
+                # set once at connect time. `adb reverse` is idempotent, so
+                # re-asserting a healthy tunnel costs nothing.
+                if not self.state.reverse_ok or not has_reverse(serial, self.port):
                     self._set(reverse_ok=setup_reverse(serial, self.port))
 
             self._stop.wait(POLL_SECONDS)

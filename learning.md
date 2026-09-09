@@ -631,6 +631,49 @@ Windows discards synthetic input aimed at higher-privileged processes.
 
 ---
 
+## 5C. Sound: listening and dictating
+
+### Playing PC audio through the phone
+
+Tap **listen** on the PLAYING card. The PC's output is captured and streamed
+down the USB cable, and the phone plays it.
+
+Latency is roughly a fifth of a second -- fine for music, poor for lip-sync on
+video. Audio is mono because the phone has one speaker, and uncompressed
+because the link is a cable where bandwidth is free and a codec would only add
+delay. Capture only runs while something is listening.
+
+**On using both speakers:** not possible on this phone, for two separate
+reasons. Android reports one earpiece and one loudspeaker on the CPH1859 -- the
+earpiece is a call receiver, not a second speaker, so there is no stereo pair to
+drive. And Android routes media audio to one output at a time; there is no API
+for an app to play out of the earpiece and the loudspeaker together. The
+loudspeaker alone is what you get, and it is the better of the two anyway.
+
+### Dictating to the PC
+
+Tap the **microphone** button in the top bar, speak, tap it again. What you say
+is typed into whichever window has focus on the PC.
+
+Recognition runs **offline** on the PC using Vosk -- no API key, no internet, and
+no audio leaves the machine. The model lives in `.tools/` and is not in the
+repository; see `requirements.txt` for the download.
+
+It types rather than pretending to be a microphone device. Making the phone
+appear as a real Windows input device would need a virtual audio driver
+installed at kernel level, with administrator rights and a reboot; typing the
+recognised words needs none of that and is what dictation is actually for.
+
+Two things the Android app needs for this, both easy to get wrong:
+
+* `RECORD_AUDIO` **and** `MODIFY_AUDIO_SETTINGS`. Without the second the
+  WebView refuses to open any microphone and `getUserMedia` fails with a bare
+  `NotReadableError`; the real reason only appears in logcat.
+* A `WebChromeClient.onPermissionRequest` that grants the request. Without it
+  the WebView denies the page's microphone request silently.
+
+---
+
 ## 6. The top bar: four app launchers
 
 The four logos next to the temperatures. They are edited exactly like any other

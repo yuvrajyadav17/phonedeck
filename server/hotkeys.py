@@ -16,6 +16,7 @@ import time
 from ctypes import wintypes
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
+LRESULT = ctypes.c_ssize_t
 
 # ------------------------------------------------------------ structures ----
 ULONG_PTR = ctypes.c_uint64 if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_ulong
@@ -157,10 +158,21 @@ def _make_key_input(vk: int, keyup: bool) -> INPUT:
     )
 
 
+user32.SendInput.argtypes = [ctypes.c_uint, ctypes.POINTER(INPUT), ctypes.c_int]
+user32.SendInput.restype = ctypes.c_uint
+
+
 def _dispatch(inputs: list[INPUT]) -> None:
     if not inputs:
         return
-    array = (INPUT * len(inputs))(*inputs)
+    # Copy field by field into the array. Handing the constructor a list of
+    # temporaries lets them be freed before SendInput reads the memory; see
+    # the note in type_text.
+    array = (INPUT * len(inputs))()
+    for i, item in enumerate(inputs):
+        array[i].type = item.type
+        ctypes.memmove(ctypes.byref(array[i].u), ctypes.byref(item.u),
+                       ctypes.sizeof(_INPUTUNION))
     sent = user32.SendInput(len(inputs), array, ctypes.sizeof(INPUT))
     if sent != len(inputs):
         raise OSError(f"SendInput sent {sent}/{len(inputs)} events "
@@ -214,29 +226,60 @@ def move_mouse_relative(dx: int = 0, dy: int = 0) -> None:
     _dispatch([event])
 
 
-def type_text(text: str) -> None:
-    """Type a literal string, layout-independently.
+# Above this length, typing is done by pasting instead. Short snippets are
+# still typed directly, so a single character does not disturb the clipboard.
+PASTE_THRESHOLD = 8
 
-    Uses KEYEVENTF_UNICODE so the characters arrive exactly as written no
-    matter what keyboard layout is active -- important for snippets containing
-    symbols that move around between layouts.
+
+def _type_by_keystrokes(text: str) -> None:
+    """Inject text as individual key events. Only safe for short strings."""
+    count = len(text) * 2
+    array = (INPUT * count)()
+    for index, ch in enumerate(text):
+        code = ord(ch)
+        for offset, keyup in enumerate((False, True)):
+            event = array[index * 2 + offset]
+            event.type = INPUT_KEYBOARD
+            event.u.ki.wVk = 0
+            event.u.ki.wScan = code
+            event.u.ki.dwFlags = KEYEVENTF_UNICODE | (KEYEVENTF_KEYUP if keyup else 0)
+            event.u.ki.time = 0
+            event.u.ki.dwExtraInfo = 0
+    user32.SendInput(count, array, ctypes.sizeof(INPUT))
+
+
+def type_text(text: str) -> None:
+    """Put a literal string into whatever window has focus.
+
+    Anything longer than a few characters is pasted rather than typed.
+    Synthetic keystrokes cannot be injected faster than the receiving
+    application drains its input queue, and when they outrun it the tail of a
+    sentence arrives as one repeated character -- "search for flight prices"
+    landing as "search yyyyyyyyyyyy". Windows reports every event as delivered,
+    so nothing surfaces the loss. Chunking and pauses only move where it breaks.
+
+    A paste is exact, instant regardless of length, and works in anything that
+    accepts Ctrl+V. The previous clipboard contents are restored afterwards.
     """
-    events: list[INPUT] = []
-    for ch in text:
-        for keyup in (False, True):
-            flags = KEYEVENTF_UNICODE | (KEYEVENTF_KEYUP if keyup else 0)
-            events.append(
-                INPUT(
-                    type=INPUT_KEYBOARD,
-                    u=_INPUTUNION(
-                        ki=KEYBDINPUT(wVk=0, wScan=ord(ch), dwFlags=flags,
-                                      time=0, dwExtraInfo=0)
-                    ),
-                )
-            )
-        # SendInput takes a fixed-size array; chunk so very long snippets do
-        # not build one enormous allocation.
-        if len(events) >= 200:
-            _dispatch(events)
-            events = []
-    _dispatch(events)
+    if not text:
+        return
+
+    if len(text) < PASTE_THRESHOLD:
+        _type_by_keystrokes(text)
+        return
+
+    from . import clipboard
+
+    previous = clipboard.get_text()
+    if not clipboard.set_text(text):
+        # Could not take the clipboard; better a slow, imperfect type than
+        # silently doing nothing.
+        _type_by_keystrokes(text)
+        return
+
+    send_combo("ctrl+v")
+    # Let the paste complete before taking the clipboard back, or the target
+    # reads whatever we restored instead.
+    time.sleep(0.25)
+    if previous is not None:
+        clipboard.set_text(previous)

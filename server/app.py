@@ -6,14 +6,17 @@ up by bridge.py, so this port is never visible on your LAN.
 """
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from typing import Any, Callable
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
+from flask_sock import Sock
 
-from . import (actions, claude, downloads, icons, macros, notes,
-               nowplaying, sensors, stats, weather)
+from . import (actions, audio_out, claude, downloads, hotkeys, icons,
+               macros, notes, nowplaying, sensors, stats, voice,
+               weather)
 from .bridge import Bridge
 from . import config
 from .config import (
@@ -192,6 +195,100 @@ def create_app() -> Flask:
     @guard
     def api_macro_status():
         return jsonify({"ok": True, **macros.recorder.status()})
+
+    # ------------------------------------------------------ audio out ----
+    sock = Sock(app)
+
+    @sock.route("/ws/audio")
+    def ws_audio(ws):
+        """Raw mono 16-bit PCM at 48 kHz, for as long as the socket is open.
+
+        Browsers cannot set headers on a WebSocket handshake, so the token
+        rides the query string here rather than a header.
+        """
+        if request.args.get("t") != TOKEN:
+            ws.close()
+            return
+
+        listener = audio_out.audio_out.subscribe()
+        log.info("audio listener connected")
+        try:
+            while True:
+                try:
+                    chunk = listener.get(timeout=5.0)
+                except Exception:
+                    # Nothing for a while: ping so a dead socket is noticed.
+                    ws.send(b"")
+                    continue
+                ws.send(chunk)
+        except Exception:  # noqa: BLE001 - the client went away
+            pass
+        finally:
+            audio_out.audio_out.unsubscribe(listener)
+            log.info("audio listener gone")
+
+    @app.get("/api/audio/status")
+    @guard
+    def api_audio_status():
+        return jsonify({"ok": True, **audio_out.audio_out.status()})
+
+    # ------------------------------------------------------ voice in ----
+    @sock.route("/ws/voice")
+    def ws_voice(ws):
+        """16 kHz mono PCM from the phone's microphone, typed where you point.
+
+        Recognition is offline (Vosk). Each finished phrase is typed into
+        whatever window has focus on the PC, so the phone acts as a dictation
+        device without any virtual audio driver.
+        """
+        if request.args.get("t") != TOKEN:
+            ws.close()
+            return
+
+        session = voice.voice.session()
+        if session is None:
+            ws.send(json.dumps({"error": voice.voice.status().get("error")
+                                or "speech recognition unavailable"}))
+            ws.close()
+            return
+
+        log.info("voice session opened")
+        typed = 0
+        try:
+            while True:
+                chunk = ws.receive(timeout=60)
+                if chunk is None:
+                    break
+                if isinstance(chunk, str):
+                    if chunk == "stop":
+                        break
+                    continue
+                result = session.feed(chunk)
+                if result.get("final"):
+                    text = result["final"]
+                    # A trailing space so consecutive phrases do not run
+                    # together into one word.
+                    hotkeys.type_text(text + " ")
+                    typed += len(text)
+                    ws.send(json.dumps({"final": text}))
+                elif result.get("partial"):
+                    ws.send(json.dumps({"partial": result["partial"]}))
+        except Exception:  # noqa: BLE001 - the client went away
+            pass
+        finally:
+            try:
+                tail = session.finish()
+                if tail:
+                    hotkeys.type_text(tail + " ")
+                    ws.send(json.dumps({"final": tail}))
+            except Exception:  # noqa: BLE001
+                pass
+            log.info("voice session closed (%d chars typed)", typed)
+
+    @app.get("/api/voice/status")
+    @guard
+    def api_voice_status():
+        return jsonify({"ok": True, **voice.voice.status()})
 
     # ------------------------------------------------------------ notes ----
     @app.get("/notes")

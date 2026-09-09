@@ -11,6 +11,17 @@
          WebView still counts that as network access. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- The dashboard can use the phone as a dictation mic for the PC.
+         Audio is recognised on the PC and never leaves it.
+
+         MODIFY_AUDIO_SETTINGS is required as well, and is easy to miss: the
+         WebView's media layer refuses to open any input device without it,
+         failing getUserMedia with a bare NotReadableError and logging
+         "Requires MODIFY_AUDIO_SETTINGS and RECORD_AUDIO". It is a normal
+         permission, so it is granted at install with no prompt. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"

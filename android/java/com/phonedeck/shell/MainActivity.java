@@ -1,7 +1,9 @@
 package com.phonedeck.shell;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.pm.PackageManager;
 import android.content.DialogInterface;
 import android.graphics.Color;
 import android.os.Build;
@@ -13,6 +15,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JsResult;
+import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -84,7 +87,22 @@ public class MainActivity extends Activity {
         });
 
         setContentView(root);
+        requestMicPermission();
         load();
+    }
+
+    /**
+     * Android needs the microphone granted twice over: once by the user for
+     * the app, and again by the app for the WebView (see onPermissionRequest).
+     * Asking here means the prompt is out of the way before dictation is
+     * first used, rather than mid-sentence.
+     */
+    private void requestMicPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                   != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1);
+        }
     }
 
     /**
@@ -137,6 +155,18 @@ public class MainActivity extends Activity {
         // confirmed button (shut down, close everything) would silently do
         // nothing. These two handlers are what make those dialogs real.
         view.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                // The page only ever asks for the microphone, and only when
+                // the dictation button is pressed. Without this the WebView
+                // denies getUserMedia outright and says nothing.
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        request.grant(request.getResources());
+                    }
+                });
+            }
+
             @Override
             public boolean onJsConfirm(WebView v, String url, String message,
                                        final JsResult result) {

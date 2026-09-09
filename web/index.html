@@ -57,6 +57,10 @@
     <span id="linkText">connecting</span>
   </div>
 
+  <button class="mic" id="micBtn" aria-label="Dictate to the PC" title="Dictate to the PC">
+    <span class="mic-ico">&#127908;</span>
+  </button>
+
   <button class="menu" id="fab" aria-label="Open shortcuts">
     <span class="menu-grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
   </button>
@@ -88,7 +92,13 @@
       </div>
 
       <div class="card np" id="npCard">
-        <div class="card-head"><h3>PLAYING</h3><span class="hint" id="npSource"></span></div>
+        <div class="card-head">
+          <h3>PLAYING</h3>
+          <button class="spk-btn" id="spkBtn" title="Play PC audio through this phone">
+            <span id="spkIcon">&#128266;</span><span id="spkText">listen</span>
+          </button>
+        </div>
+        <div class="np-source" id="npSource"></div>
         <div class="np-title" id="npTitle">nothing playing</div>
         <div class="np-artist" id="npArtist"></div>
       </div>

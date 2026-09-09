@@ -22,5 +22,18 @@ winrt-Windows.Foundation>=3.0
 winrt-Windows.Foundation.Collections>=3.0
 winrt-Windows.Storage.Streams>=3.0
 
+# --- streaming PC audio to the phone --------------------------------------
+# soundcard captures the default output with WASAPI loopback; flask-sock
+# carries the PCM over a WebSocket.
+soundcard>=0.4
+numpy>=2.0
+flask-sock>=0.7
+
+# --- voice input: offline speech recognition ------------------------------
+# Needs a model too, which is not a pip package:
+#   https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+#   unzip into .tools/  (about 40 MB download, 68 MB on disk)
+vosk>=0.3.45
+
 # --- tools/devtools.py: evaluate JS inside the phone's WebView ------------
 websocket-client>=1.8

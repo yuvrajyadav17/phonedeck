@@ -346,6 +346,203 @@
     else if (kind === "bad") { tone(320, 260); }
   }
 
+
+
+  // ==================================================== voice input =====
+  /* The phone's microphone as a dictation device: capture here, recognise on
+     the PC, and the recognised words are typed into whatever window has focus
+     over there. Nothing is sent anywhere but down the USB cable.
+
+     Audio is resampled to the 16 kHz the recogniser expects before sending,
+     which also cuts the bandwidth to a third. */
+  var VOICE_RATE = 16000;
+  var micWs = null, micStream = null, micNode = null, micSource = null;
+  var heardEl = null;
+
+  function showHeard(text) {
+    if (!heardEl) {
+      heardEl = document.createElement("div");
+      heardEl.className = "heard";
+      document.body.appendChild(heardEl);
+    }
+    heardEl.textContent = text || "listening…";
+  }
+
+  function hideHeard() {
+    if (heardEl && heardEl.parentNode) heardEl.parentNode.removeChild(heardEl);
+    heardEl = null;
+  }
+
+  function micStop() {
+    if (micWs) {
+      try { micWs.send("stop"); micWs.close(); } catch (e) {}
+      micWs = null;
+    }
+    if (micNode) { try { micNode.disconnect(); } catch (e) {} micNode.onaudioprocess = null; micNode = null; }
+    if (micSource) { try { micSource.disconnect(); } catch (e) {} micSource = null; }
+    if (micStream) {
+      micStream.getTracks().forEach(function (t) { t.stop(); });
+      micStream = null;
+    }
+    $("micBtn").className = "mic";
+    hideHeard();
+  }
+
+  function micStart() {
+    unlockAudio();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast("This device cannot capture audio", "bad");
+      return;
+    }
+    $("micBtn").className = "mic on";
+    showHeard("");
+
+    navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    }).then(function (stream) {
+      micStream = stream;
+      var scheme = location.protocol === "https:" ? "wss:" : "ws:";
+      micWs = new WebSocket(scheme + "//" + location.host
+                            + "/ws/voice?t=" + encodeURIComponent(token));
+      micWs.binaryType = "arraybuffer";
+
+      micWs.onmessage = function (e) {
+        var msg;
+        try { msg = JSON.parse(e.data); } catch (err) { return; }
+        if (msg.error) { toast(msg.error, "bad"); micStop(); return; }
+        if (msg.final) { showHeard(msg.final); }
+        else if (msg.partial) { showHeard(msg.partial); }
+      };
+      micWs.onerror = function () { toast("Voice link failed", "bad"); micStop(); };
+      micWs.onclose = function () { if (micWs) micStop(); };
+
+      micWs.onopen = function () {
+        micSource = audioCtx.createMediaStreamSource(stream);
+        micNode = audioCtx.createScriptProcessor(4096, 1, 1);
+        var ratio = audioCtx.sampleRate / VOICE_RATE;
+
+        micNode.onaudioprocess = function (ev) {
+          if (!micWs || micWs.readyState !== 1) return;
+          var input = ev.inputBuffer.getChannelData(0);
+          var outLen = Math.floor(input.length / ratio);
+          var pcm = new Int16Array(outLen);
+          for (var i = 0; i < outLen; i++) {
+            var s = input[Math.floor(i * ratio)];
+            pcm[i] = Math.max(-32768, Math.min(32767, s * 32767));
+          }
+          try { micWs.send(pcm.buffer); } catch (e) {}
+        };
+
+        micSource.connect(micNode);
+        // ScriptProcessor only runs while connected to the graph; a zeroed
+        // gain node keeps it alive without playing the mic back at you.
+        var mute = audioCtx.createGain();
+        mute.gain.value = 0;
+        micNode.connect(mute);
+        mute.connect(audioCtx.destination);
+      };
+    }).catch(function (err) {
+      toast("Microphone denied: " + err.name, "bad");
+      micStop();
+    });
+  }
+
+  $("micBtn").onclick = function () {
+    if (micWs || micStream) micStop(); else micStart();
+  };
+
+  // ==================================================== audio listen =====
+  /* Raw mono PCM at 48 kHz arrives over a WebSocket and is played through a
+     ScriptProcessorNode. AudioWorklet would be tidier, but ScriptProcessor is
+     the one that certainly exists in Chromium 71.
+
+     A jitter buffer absorbs the uneven arrival of network blocks; playback
+     waits until it has some cushion, and drops the oldest audio if it ever
+     runs far ahead, because stale sound is worse than a gap. */
+  var SRC_RATE = 48000;
+  var PREBUFFER = 9600;        // 200 ms before we start
+  var MAX_BUFFER = 48000;      // 1 s ceiling
+  var audioWs = null, audioNode = null;
+  var chunks = [], buffered = 0, playPos = 0, playing = false;
+
+  function setSpeakerUi(state) {
+    var btn = $("spkBtn");
+    btn.className = "spk-btn" + (state === "on" ? " on"
+                    : state === "connecting" ? " connecting" : "");
+    $("spkText").textContent = state === "on" ? "listening"
+                             : state === "connecting" ? "…" : "listen";
+  }
+
+  function audioStop() {
+    if (audioWs) { try { audioWs.close(); } catch (e) {} audioWs = null; }
+    if (audioNode) {
+      try { audioNode.disconnect(); } catch (e) {}
+      audioNode.onaudioprocess = null;
+      audioNode = null;
+    }
+    chunks = []; buffered = 0; playPos = 0; playing = false;
+    setSpeakerUi("off");
+  }
+
+  function audioStart() {
+    unlockAudio();
+    if (!audioCtx) { toast("This device has no Web Audio", "bad"); return; }
+    if (audioWs) return;
+
+    setSpeakerUi("connecting");
+    var scheme = location.protocol === "https:" ? "wss:" : "ws:";
+    audioWs = new WebSocket(scheme + "//" + location.host
+                            + "/ws/audio?t=" + encodeURIComponent(token));
+    audioWs.binaryType = "arraybuffer";
+
+    audioWs.onopen = function () { setSpeakerUi("on"); };
+    audioWs.onerror = function () { toast("Audio stream failed", "bad"); audioStop(); };
+    audioWs.onclose = function () { if (audioWs) audioStop(); };
+
+    audioWs.onmessage = function (e) {
+      if (!e.data || e.data.byteLength < 2) return;   // keep-alive ping
+      var src = new Int16Array(e.data);
+      var f = new Float32Array(src.length);
+      for (var i = 0; i < src.length; i++) f[i] = src[i] / 32768;
+      chunks.push(f);
+      buffered += f.length;
+      // Too far behind: throw away the oldest rather than drift for ever.
+      while (buffered > MAX_BUFFER && chunks.length > 1) {
+        buffered -= chunks[0].length;
+        chunks.shift();
+        playPos = 0;
+      }
+      if (!playing && buffered >= PREBUFFER) playing = true;
+    };
+
+    // The context may not run at 48 kHz; step through the source at a ratio
+    // rather than assuming it matches.
+    var ratio = SRC_RATE / audioCtx.sampleRate;
+    audioNode = audioCtx.createScriptProcessor(4096, 1, 1);
+    audioNode.onaudioprocess = function (ev) {
+      var out = ev.outputBuffer.getChannelData(0);
+      for (var i = 0; i < out.length; i++) {
+        while (chunks.length && Math.floor(playPos) >= chunks[0].length) {
+          playPos -= chunks[0].length;
+          buffered -= chunks[0].length;
+          chunks.shift();
+        }
+        if (!playing || !chunks.length) {
+          out[i] = 0;                 // underrun: silence, not a click
+          if (!chunks.length) playing = false;
+          continue;
+        }
+        out[i] = chunks[0][Math.floor(playPos)];
+        playPos += ratio;
+      }
+    };
+    audioNode.connect(audioCtx.destination);
+  }
+
+  $("spkBtn").onclick = function () {
+    if (audioWs) audioStop(); else audioStart();
+  };
+
   // ============================================================ notes =====
   function renderNotes(items) {
     var box = $("notesList");

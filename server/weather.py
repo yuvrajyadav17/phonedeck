@@ -3,10 +3,14 @@
 Uses Open-Meteo: free, no API key, no account, no rate-limit paperwork. That
 matters for something polled all day on a desk panel.
 
-Location is resolved once and cached. If PHONEDECK_LAT/LON are set in config
-they win; otherwise it is looked up from the public IP, which is the only way
-a headless PC can know where it is. That lookup sends the IP to a geolocation
-service exactly once, and the result is written to .state so it never repeats.
+Location is resolved once and cached. WEATHER_LAT/WEATHER_LON in config win;
+otherwise it falls back to the public IP, which is worth distrusting -- it
+reports wherever the ISP breaks out, which on this connection was about 160 km
+from the actual desk. Either way the lookup happens once and is cached.
+
+Open-Meteo answers for any coordinate by interpolating its forecast grid, so
+asking for an exact point automatically yields the nearest available data. The
+grid point that answered is reported back as grid_lat/grid_lon.
 """
 from __future__ import annotations
 
@@ -66,10 +70,47 @@ def _cached_location() -> dict[str, Any] | None:
         return None
 
 
-def resolve_location(lat: float | None, lon: float | None) -> dict[str, Any] | None:
+def _write_location(found: dict[str, Any]) -> None:
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        LOCATION_CACHE.write_text(json.dumps(found, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _reverse_geocode(lat: float, lon: float) -> str | None:
+    """A human name for a coordinate. Keyless, and called at most once."""
+    try:
+        data = _get_json(
+            "https://api.bigdatacloud.net/data/reverse-geocode-client"
+            f"?latitude={lat}&longitude={lon}&localityLanguage=en")
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+    parts = [data.get("locality"), data.get("principalSubdivision"),
+             data.get("countryName")]
+    return ", ".join(p for p in parts if p) or None
+
+
+def resolve_location(lat: float | None, lon: float | None,
+                     place: str | None = None) -> dict[str, Any] | None:
     """Where to report weather for. Configured values beat everything."""
     if lat is not None and lon is not None:
-        return {"lat": lat, "lon": lon, "place": "configured"}
+        if place:
+            return {"lat": lat, "lon": lon, "place": place}
+
+        # Reuse the cached name only if it belongs to these coordinates --
+        # otherwise a changed config would keep the old town's label.
+        cached = _cached_location()
+        if (cached and abs(cached.get("lat", 0) - lat) < 1e-6
+                and abs(cached.get("lon", 0) - lon) < 1e-6
+                and cached.get("place")):
+            return cached
+
+        found = {"lat": lat, "lon": lon,
+                 "place": _reverse_geocode(lat, lon) or f"{lat:.3f}, {lon:.3f}"}
+        _write_location(found)
+        log.info("weather location (from config): %s", found["place"])
+        return found
 
     cached = _cached_location()
     if cached:
@@ -85,11 +126,7 @@ def resolve_location(lat: float | None, lon: float | None) -> dict[str, Any] | N
 
     place = ", ".join(p for p in (data.get("city"), data.get("country")) if p)
     found = {"lat": data["lat"], "lon": data["lon"], "place": place or "unknown"}
-    try:
-        STATE_DIR.mkdir(parents=True, exist_ok=True)
-        LOCATION_CACHE.write_text(json.dumps(found, indent=2), encoding="utf-8")
-    except OSError:
-        pass
+    _write_location(found)
     log.info("weather location: %s (%.2f, %.2f) -- edit .state/location.json "
              "or set the coordinates in config.py to change it",
              found["place"], found["lat"], found["lon"])
@@ -105,11 +142,13 @@ class Weather:
         self._thread: threading.Thread | None = None
         self._lat: float | None = None
         self._lon: float | None = None
+        self._place: str | None = None
 
-    def start(self, lat: float | None = None, lon: float | None = None) -> None:
+    def start(self, lat: float | None = None, lon: float | None = None,
+              place: str | None = None) -> None:
         if self._thread and self._thread.is_alive():
             return
-        self._lat, self._lon = lat, lon
+        self._lat, self._lon, self._place = lat, lon, place
         self._thread = threading.Thread(target=self._loop, name="weather",
                                         daemon=True)
         self._thread.start()
@@ -124,7 +163,7 @@ class Weather:
             time.sleep(REFRESH_SECONDS if ok else RETRY_SECONDS)
 
     def _refresh(self) -> bool:
-        place = resolve_location(self._lat, self._lon)
+        place = resolve_location(self._lat, self._lon, self._place)
         if place is None:
             return False
 
@@ -152,6 +191,10 @@ class Weather:
                 "high": first("temperature_2m_max"),
                 "low": first("temperature_2m_min"),
                 "rain_chance": first("precipitation_probability_max"),
+                # The grid point that actually answered, which is the nearest
+                # available data rather than the exact coordinate.
+                "grid_lat": data.get("latitude"),
+                "grid_lon": data.get("longitude"),
                 "updated": time.time(),
             }
         return True

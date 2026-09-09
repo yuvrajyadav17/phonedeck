@@ -164,10 +164,21 @@ it will stay there even lying flat on the desk.
 
 ### Weather
 
-Comes from Open-Meteo: no API key, no account. The location is looked up once
-from your public IP and cached in `.state/location.json`, which you can edit by
-hand; or set `WEATHER_LAT` / `WEATHER_LON` in `server/config.py` to skip the
-lookup entirely. Currently it resolves to Safidon, India.
+Comes from Open-Meteo: no API key, no account.
+
+The coordinates are set explicitly in `server/config.py` (`WEATHER_LAT` /
+`WEATHER_LON`). **Do not rely on the IP fallback** — it reports wherever your
+ISP breaks out, which on this connection was about 160 km away. The fallback
+only runs if both are left as `None`.
+
+Open-Meteo answers for any coordinate by interpolating its forecast grid, so
+asking for an exact point automatically gives you the nearest available data —
+about 2 km away here. The grid point that answered comes back in the API as
+`grid_lat` / `grid_lon` if you ever want to check.
+
+The place name is only a label. It is reverse-geocoded once and cached in
+`.state/location.json`; set `WEATHER_PLACE` in config to override it, or delete
+the cache file to have it looked up again after changing coordinates.
 
 ### Now playing
 

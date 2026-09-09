@@ -27,11 +27,18 @@ PORT = 8770
 # How often the dashboard polls /api/stats, in milliseconds.
 STATS_POLL_MS = 1000
 
-# Where to report weather for. Leave as None and the location is looked
-# up once from the public IP and cached in .state/location.json, which
-# you can also just edit by hand.
-WEATHER_LAT: float | None = None
-WEATHER_LON: float | None = None
+# Where to report weather for. Set explicitly, because IP geolocation put this
+# machine ~160 km away (it reports wherever the ISP breaks out, not where you
+# are). Open-Meteo answers for any coordinate by interpolating its grid, so the
+# nearest available data is used automatically -- for these coordinates that is
+# a point about 2 km away.
+#
+# Leave both as None to fall back to the IP lookup, cached in
+# .state/location.json. WEATHER_PLACE is only the label shown on the panel;
+# leave it None and the name is reverse-geocoded once and cached.
+WEATHER_LAT: float | None = 27.9965829
+WEATHER_LON: float | None = 76.1951099
+WEATHER_PLACE: str | None = None
 
 
 # ---------------------------------------------------------------- device ----

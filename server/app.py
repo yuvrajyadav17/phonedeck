@@ -231,7 +231,8 @@ def main() -> None:
 
     app = create_app()
     sensors.start()
-    weather.weather.start(config.WEATHER_LAT, config.WEATHER_LON)
+    weather.weather.start(config.WEATHER_LAT, config.WEATHER_LON,
+                          config.WEATHER_PLACE)
     nowplaying.now_playing.start()
     bridge.start()
 

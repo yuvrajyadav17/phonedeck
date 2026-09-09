@@ -104,36 +104,30 @@ powershell -ExecutionPolicy Bypass -File install_autostart.ps1
 
 ## 3. Using the dashboard on the phone
 
-### Two pages
+### Three pages
 
-The dashboard has two pages; **swipe left and right** anywhere except the Disk
-I/O card (which keeps its own swipe for the drives). Dots at the bottom show
-which page you are on.
+**Swipe left and right** anywhere except the Disk I/O card, which keeps its own
+swipe for the drives. Dots at the bottom show where you are.
 
-**Page 1 — what is worth seeing without touching anything.** CPU/RAM/GPU on the
-left, Network and Disk in the middle, and on the right a clock, the weather,
-and whatever the PC is playing.
+**Page 1 — essentials.** What is worth seeing without touching anything: a
+clock, the weather, whatever the PC is playing, and your notes and to-dos.
 
-**Page 2 — the detail you go looking for.** The full process list with CPU and
-memory side by side, and every drive with its usage.
+**Page 2 — the system.** CPU, RAM and GPU down the left, Network and Disk I/O
+in the middle, the process list on the right with its **CPU / RAM** switch.
 
-The process list moved here deliberately: it is a diagnostic tool you consult
-occasionally, and it was taking a third of the screen away from things worth
-glancing at all day.
+**Page 3 — downloads.** No swipe reaches it. The only way in is the chip in the
+top bar, which itself appears only while something is actually downloading.
+Swiping off it returns you where you were.
 
-### Landscape — the three-column board
+The system readout moved off the front deliberately: it is what you go looking
+for when something is wrong, and it was taking the whole screen away from
+things worth glancing at all day.
 
-**Top bar** — uptime clock, CPU and GPU temperature, four app launchers, the
-connection dot, and the menu button.
+### The top bar
 
-**Left column** — CPU, RAM and GPU. Scrolls on its own if it overflows.
-
-**Centre column** — Network and Disk I/O. Deliberately fixed; it never scrolls.
-
-**Right column** — clock, weather, and now playing.
-
-Page 2 is two columns: the process list with its **CPU / RAM** switch, and
-every drive.
+Uptime clock, CPU and GPU temperature, the Claude light, the four app
+launchers, the download chip (only when downloading), the connection dot, the
+microphone button, and the menu.
 
 ### Gestures
 

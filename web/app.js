@@ -131,6 +131,9 @@
     var startX = 0, startY = 0, tracking = false;
 
     card.addEventListener("touchstart", function (e) {
+      // Keep this gesture to the drives: without it a swipe here would also
+      // flip the dashboard page underneath.
+      e.stopPropagation();
       if (e.touches.length !== 1) return;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
@@ -138,6 +141,7 @@
     }, { passive: true });
 
     card.addEventListener("touchend", function (e) {
+      e.stopPropagation();
       if (!tracking) return;
       tracking = false;
       var touch = e.changedTouches[0];
@@ -156,10 +160,13 @@
     var html = "";
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
-      var value = metric === "mem" ? esc(p.mem_h) : p.cpu.toFixed(1) + "%";
+      // Both columns are shown; the one being sorted on is the bright one.
+      var cpuCls = metric === "cpu" ? "val strong" : "val";
+      var memCls = metric === "mem" ? "val strong" : "val";
       html += '<div class="proc" data-pid="' + p.pid + '">'
             +   '<div class="name">' + esc(p.name) + "</div>"
-            +   '<div class="val">' + value + "</div>"
+            +   '<div class="' + cpuCls + '">' + p.cpu.toFixed(1) + "%</div>"
+            +   '<div class="' + memCls + '">' + esc(p.mem_h) + "</div>"
             + "</div>";
     }
     $("procs").innerHTML = html;
@@ -232,6 +239,108 @@
 
   }
 
+
+  // ========================================================== paging =====
+  var page = 0;
+
+  function setPage(n) {
+    page = Math.max(0, Math.min(1, n));
+    $("board").setAttribute("data-page", String(page));
+    // Landscape slides; portrait swaps by display (see the stylesheet).
+    $("pager").style.transform = "translateX(" + (page * -50) + "%)";
+    var dots = $("pageDots").children;
+    for (var i = 0; i < dots.length; i++) {
+      dots[i].className = i === page ? "on" : "";
+    }
+  }
+
+  (function bindPageSwipe() {
+    var board = $("board");
+    var startX = 0, startY = 0, tracking = false;
+
+    board.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    board.addEventListener("touchend", function (e) {
+      if (!tracking) return;
+      tracking = false;
+      var touch = e.changedTouches[0];
+      var dx = touch.clientX - startX;
+      var dy = touch.clientY - startY;
+      // Horizontal intent only; a vertical drag is a scroll.
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      setPage(page + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+  })();
+
+  // =========================================================== clock =====
+  /* Ticks from the phone's own clock rather than the server: it updates every
+     second without a round trip, and the two devices sit on the same desk. */
+  function tickClock() {
+    var now = new Date();
+    var h = now.getHours(), m = now.getMinutes();
+    $("clockTime").textContent =
+      (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+    $("clockDate").textContent = now.toLocaleDateString(undefined, {
+      weekday: "short", day: "numeric", month: "short"
+    });
+    // Land the next tick just after the minute turns.
+    setTimeout(tickClock, (60 - now.getSeconds()) * 1000 + 200);
+  }
+
+  // ========================================================= weather =====
+  function renderWeather(w) {
+    if (!w) { $("wxTemp").textContent = "--°"; $("wxLabel").textContent = "…"; return; }
+    $("wxSymbol").textContent = w.symbol || "•";
+    $("wxTemp").textContent = Math.round(w.temp) + "°";
+    $("wxLabel").textContent = w.label || "";
+    $("wxFeels").textContent = w.feels != null
+      ? "feels " + Math.round(w.feels) + "°" : "";
+    $("wxRange").textContent = (w.low != null && w.high != null)
+      ? Math.round(w.low) + "° / " + Math.round(w.high) + "°" : "";
+    $("wxRain").textContent = w.rain_chance != null
+      ? w.rain_chance + "% rain" : "";
+    $("wxPlace").textContent = w.place || "";
+    $("wxWind").textContent = w.wind != null ? Math.round(w.wind) + " km/h" : "";
+  }
+
+  // ===================================================== now playing =====
+  function renderNowPlaying(np) {
+    var card = $("npCard");
+    if (!np) {
+      card.className = "card np quiet";
+      $("npTitle").textContent = "nothing playing";
+      $("npArtist").textContent = "";
+      $("npSource").textContent = "";
+      return;
+    }
+    card.className = "card np" + (np.playing ? "" : " quiet");
+    $("npTitle").textContent = np.title || "—";
+    $("npArtist").textContent = np.artist || "";
+    $("npSource").textContent = np.source || "";
+  }
+
+  // ================================================ drives (page 2) =====
+  function renderDrivesAll(disks) {
+    var html = "";
+    (disks || []).forEach(function (d) {
+      var cls = d.percent >= 90 ? "bad" : d.percent >= 75 ? "warn" : "";
+      html += '<div class="dv">'
+            +   '<div class="dv-head"><b>' + esc(d.device) + "</b>"
+            +   "<span>" + esc(d.free_h) + " free</span></div>"
+            +   '<div class="bar"><i class="' + cls + '" style="width:'
+            +   d.percent + '%"></i></div>'
+            +   '<div class="dv-head"><span>' + esc(d.used_h) + " / "
+            +   esc(d.total_h) + "</span><span>" + d.percent + "%</span></div>"
+            + "</div>";
+    });
+    $("drivesAll").innerHTML = html;
+  }
+
   // ------------------------------------------------------------- apply --
   function applyStats(s) {
     lastStats = s;
@@ -286,6 +395,9 @@
     $("ioWrite").textContent = s.disk_io.write_per_s_h;
 
     renderDrive(s.disks, s.disk_io);
+    renderDrivesAll(s.disks);
+    renderWeather(s.weather);
+    renderNowPlaying(s.now_playing);
     if (s.processes) renderProcs(s.processes);
   }
 
@@ -436,6 +548,8 @@
     .then(function (h) { if (h.poll_ms) pollMs = h.poll_ms; })
     .catch(function () {})
     .then(function () {
+      setPage(0);
+      tickClock();
       poll();
       loadShortcuts();
     });

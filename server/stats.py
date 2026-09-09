@@ -13,7 +13,7 @@ from typing import Any
 
 import psutil
 
-from . import claude, sensors
+from . import claude, nowplaying, sensors, weather
 
 _BOOT_TIME = psutil.boot_time()
 _LOGICAL_CORES = psutil.cpu_count(logical=True) or 1
@@ -282,6 +282,8 @@ def snapshot(include_processes: bool = True) -> dict[str, Any]:
         "gpu": external["gpu"],
         "temps": external["temps"],
         "claude": claude_state,
+        "weather": weather.weather.snapshot(),
+        "now_playing": nowplaying.now_playing.snapshot(),
     }
     if include_processes:
         data["processes"] = _top_processes()

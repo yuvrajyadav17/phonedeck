@@ -27,6 +27,12 @@ PORT = 8770
 # How often the dashboard polls /api/stats, in milliseconds.
 STATS_POLL_MS = 1000
 
+# Where to report weather for. Leave as None and the location is looked
+# up once from the public IP and cached in .state/location.json, which
+# you can also just edit by hand.
+WEATHER_LAT: float | None = None
+WEATHER_LON: float | None = None
+
 
 # ---------------------------------------------------------------- device ----
 ADB = "adb"  # resolved via PATH; C:\platform-tools is already there

@@ -12,8 +12,10 @@ from typing import Any, Callable
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
-from . import actions, claude, icons, macros, sensors, stats
+from . import (actions, claude, icons, macros, nowplaying, sensors,
+               stats, weather)
 from .bridge import Bridge
+from . import config
 from .config import (
     HOST,
     LOG_FILE,
@@ -229,6 +231,8 @@ def main() -> None:
 
     app = create_app()
     sensors.start()
+    weather.weather.start(config.WEATHER_LAT, config.WEATHER_LON)
+    nowplaying.now_playing.start()
     bridge.start()
 
     log.info("PhoneDeck listening on http://%s:%s", HOST, PORT)

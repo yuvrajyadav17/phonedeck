@@ -1,0 +1,26 @@
+# PhoneDeck dependencies.
+#
+#   python -m pip install -r requirements.txt
+#
+# Everything here has wheels for Python 3.14. Notably `winsdk` does NOT -- it
+# fails to build -- which is why the media API uses the split `winrt-*`
+# packages instead.
+
+# --- server ---------------------------------------------------------------
+flask>=3.1
+psutil>=7.0
+
+# --- desktop editor window and tray ---------------------------------------
+pywebview>=6.0
+pystray>=0.19
+pillow>=11.0
+
+# --- "now playing", via the Windows media session API ---------------------
+winrt-runtime>=3.0
+winrt-Windows.Media.Control>=3.0
+winrt-Windows.Foundation>=3.0
+winrt-Windows.Foundation.Collections>=3.0
+winrt-Windows.Storage.Streams>=3.0
+
+# --- tools/devtools.py: evaluate JS inside the phone's WebView ------------
+websocket-client>=1.8

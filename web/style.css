@@ -136,8 +136,22 @@ html, body {
   background: var(--muted); display: block; }
 
 /* ============================================================= board ==== */
-.board { padding: 8px; }
+/* Two pages side by side, slid horizontally. Page 1 is what is worth seeing
+   without touching anything; page 2 is the detail you go looking for. */
+.board { position: relative; }
+.pager { display: flex; }
+.page { padding: 8px; }
 .col { min-width: 0; }
+
+.pagedots {
+  position: absolute; left: 0; right: 0; bottom: 3px;
+  display: flex; justify-content: center; pointer-events: none;
+}
+.pagedots i {
+  width: 5px; height: 5px; border-radius: 50%; display: block;
+  background: var(--line); margin: 0 3px; transition: background .2s ease;
+}
+.pagedots i.on { background: var(--muted); }
 
 .card {
   background: var(--card);
@@ -240,7 +254,9 @@ html, body {
 
 .procs { overflow-y: auto; min-height: 0; }
 .proc {
-  display: grid; grid-template-columns: 1fr auto; grid-gap: 8px;
+  /* Three fixed tracks: name, CPU, memory. "auto" tracks would let the row
+     wrap onto a second line once a third child was added. */
+  display: grid; grid-template-columns: 1fr 52px 66px; grid-gap: 8px;
   align-items: center; padding: 5px 0;
   border-top: 1px solid var(--line); font-size: 11.5px;
 }
@@ -256,13 +272,20 @@ html, body {
   html, body { height: 100%; overflow: hidden; }
   body { display: flex; flex-direction: column; }
 
-  .board {
-    flex: 1; min-height: 0;
-    display: grid;
-    /* Roughly the proportions in the design: components | fixed | processes */
-    grid-template-columns: 1.45fr 0.8fr 1.3fr;
-    grid-gap: 8px;
+  .board { flex: 1; min-height: 0; overflow: hidden; }
+
+  /* The pager is two board-widths wide; each page fills the board exactly. */
+  .pager {
+    width: 200%; height: 100%;
+    transition: transform .28s ease;
   }
+  .page {
+    width: 50%; height: 100%;
+    display: grid; grid-gap: 8px;
+  }
+  /* Page 1: components | fixed | essentials.  Page 2: processes | drives. */
+  .page:first-child { grid-template-columns: 1.45fr 0.8fr 1.3fr; }
+  .page:last-child  { grid-template-columns: 1.7fr 1fr; }
 
   /* min-height:0 is what actually lets a grid child scroll instead of
      stretching its track to fit the content. */
@@ -270,7 +293,10 @@ html, body {
   .col-left  { overflow-y: auto; }          /* independent scroll */
   .col-mid   { overflow: hidden; }          /* locked, as designed */
   .col-right { overflow: hidden; display: flex; flex-direction: column; }
-  .col-right .card.fill { flex: 1; min-height: 0; }
+  .col-procs, .col-drives {
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .card.fill { flex: 1; min-height: 0; }
 }
 
 /* ==================================================== portrait (stack) == */
@@ -279,7 +305,13 @@ html, body {
   html, body { overflow-x: hidden; }
   body { font-size: 15px; }
 
-  .board { padding: 12px; }
+  /* No sliding here: "overflow-x: hidden" forces overflow-y to clip as well,
+     which would cut off a page that needs to scroll. Swap by display. */
+  .board { overflow: visible; }
+  .pager { width: 100%; transform: none !important; }
+  .page { width: 100%; padding: 12px; }
+  .board[data-page="0"] .page:last-child,
+  .board[data-page="1"] .page:first-child { display: none; }
   .col { margin-bottom: 12px; }
   .col:last-child { margin-bottom: 0; }
 
@@ -324,6 +356,54 @@ html, body {
 
   .board { padding-bottom: 130px; }
 }
+
+
+/* ------------------------------------------------- essentials cards -- */
+.card.clock { text-align: center; padding: 10px 11px; }
+.clock .time {
+  font-size: 40px; font-weight: 700; line-height: 1; letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.clock .date { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
+
+.card.wx { border-left-color: var(--warn); }
+.wx-now { display: flex; align-items: center; margin-bottom: 6px; }
+.wx-sym { font-size: 25px; line-height: 1; margin-right: 9px; }
+.wx-temp {
+  font-size: 25px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--warn);
+}
+.wx-side { margin-left: auto; text-align: right;
+  display: flex; flex-direction: column; }
+.wx-side b { font-size: 11.5px; font-weight: 600; }
+.wx-side span { color: var(--muted); font-size: 10px; }
+
+.card.np { border-left-color: var(--c-ram); }
+.np-title {
+  font-size: 12.5px; font-weight: 600; margin-top: 5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.np-artist {
+  color: var(--muted); font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.np.quiet { border-left-color: var(--line); }
+.np.quiet .np-title { color: var(--muted); font-weight: 400; }
+
+/* ------------------------------------------------- page 2: drives --- */
+.drives { overflow-y: auto; min-height: 0; margin-top: 7px; }
+.drives::-webkit-scrollbar { width: 0; height: 0; }
+.dv { margin-bottom: 9px; }
+.dv:last-child { margin-bottom: 0; }
+.dv-head { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; margin-bottom: 4px; }
+.dv-head b { font-weight: 650; }
+.dv-head span { color: var(--muted); font-size: 10px;
+  font-variant-numeric: tabular-nums; }
+.dv .bar { height: 5px; margin: 0 0 3px; }
+.dv .bar > i { background: var(--ok); }
+.dv .bar > i.warn { background: var(--warn); }
+.dv .bar > i.bad  { background: var(--bad); }
 
 /* ============================================================ drawer ==== */
 .drawer {

@@ -104,6 +104,23 @@ powershell -ExecutionPolicy Bypass -File install_autostart.ps1
 
 ## 3. Using the dashboard on the phone
 
+### Two pages
+
+The dashboard has two pages; **swipe left and right** anywhere except the Disk
+I/O card (which keeps its own swipe for the drives). Dots at the bottom show
+which page you are on.
+
+**Page 1 — what is worth seeing without touching anything.** CPU/RAM/GPU on the
+left, Network and Disk in the middle, and on the right a clock, the weather,
+and whatever the PC is playing.
+
+**Page 2 — the detail you go looking for.** The full process list with CPU and
+memory side by side, and every drive with its usage.
+
+The process list moved here deliberately: it is a diagnostic tool you consult
+occasionally, and it was taking a third of the screen away from things worth
+glancing at all day.
+
 ### Landscape — the three-column board
 
 **Top bar** — uptime clock, CPU and GPU temperature, four app launchers, the
@@ -142,6 +159,22 @@ it will stay there even lying flat on the desk.
 | Red "offline" | Lost the PC — check the cable, or use *Wake phone and relaunch app* |
 
 ---
+
+### Weather
+
+Comes from Open-Meteo: no API key, no account. The location is looked up once
+from your public IP and cached in `.state/location.json`, which you can edit by
+hand; or set `WEATHER_LAT` / `WEATHER_LON` in `server/config.py` to skip the
+lookup entirely. Currently it resolves to Safidon, India.
+
+### Now playing
+
+Reads Windows' own media session — the same source the volume flyout uses — so
+it works for Spotify, a browser tab, VLC, anything that registers a session. No
+per-app integration.
+
+It needs the split `winrt-*` packages listed in `requirements.txt`. The older
+monolithic `winsdk` has no wheel for Python 3.14 and fails to build.
 
 ## 4. The editor
 

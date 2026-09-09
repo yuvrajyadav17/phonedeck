@@ -326,21 +326,31 @@ shortcuts.json          your buttons (created on first run)
 server/
   app.py                HTTP routes and auth
   stats.py              CPU / RAM / disk / network sampling
+  procscan.py           the process table, in a process of its own
   sensors.py            temperatures and GPU, on a background thread
   tray.py               system-tray icon and menu (optional)
   icons.py              real application logos for the top-bar slots
   actions.py            the shortcut engine
   hotkeys.py            SendInput via ctypes, no dependencies
+  clipboard.py          used to paste long text rather than type it
   foreground.py         brings launched apps to the front
   power.py              keep-awake, display wake, shutdown, close-all
   browsers.py           resolves the default browser for website groups
   claude.py             Claude activity state
   macros.py             record and replay input macros
+  audio_out.py          WASAPI loopback capture for the phone's speaker
+  voice.py              offline speech recognition for the phone's mic
+  nowplaying.py         what Windows says is playing
+  weather.py            Open-Meteo, on fixed coordinates
+  notes.py              the notes / to-do list
+  downloads.py          watches for downloads in progress
   bridge.py             adb watchdog: tunnel, wake, launch
   config.py             paths, token, default shortcuts
 web/
   index.html app.js style.css        the phone dashboard
+  audio-worklet.js                   jitter buffer and playback
   editor.html editor.js editor.css   the shortcut editor
+  notes.html                         the notes editor, opened on the PC
 android/
   build_apk.ps1         Gradle-free APK build
   java/…/MainActivity.java

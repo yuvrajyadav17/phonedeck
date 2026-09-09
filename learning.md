@@ -632,17 +632,97 @@ Windows discards synthetic input aimed at higher-privileged processes.
 Tap **listen** on the PLAYING card. The PC's output is captured and streamed
 down the USB cable, and the phone plays it.
 
-Latency is roughly a fifth of a second -- fine for music, poor for lip-sync on
-video. Audio is mono because the phone has one speaker, and uncompressed
-because the link is a cable where bandwidth is free and a codec would only add
-delay. Capture only runs while something is listening.
+Latency is about a fifth of a second -- fine for music, poor for lip-sync on
+video. Audio is uncompressed, because the link is a cable where bandwidth is
+free and a codec would only add delay. Capture runs only while something is
+listening.
 
-**On using both speakers:** not possible on this phone, for two separate
+**On using both speakers:** not possible on the Realme, for two separate
 reasons. Android reports one earpiece and one loudspeaker on the CPH1859 -- the
 earpiece is a call receiver, not a second speaker, so there is no stereo pair to
 drive. And Android routes media audio to one output at a time; there is no API
 for an app to play out of the earpiece and the loudspeaker together. The
 loudspeaker alone is what you get, and it is the better of the two anyway.
+
+The stream itself is stereo regardless. Downmixing on the PC only threw
+information away: Android already folds stereo down to whatever speakers the
+device actually has, and doing it first made a phone with a real stereo pair
+impossible to serve.
+
+### Why the stream used to arrive in chunks
+
+Three separate faults, all of which had to go. Worth reading before touching
+anything in this path, because two of them are invisible from the code.
+
+**1. The process list was blocking the audio.** This is the one that mattered
+and the one nobody would guess. `/api/stats` took **1.06 seconds**, and 96% of
+that was `psutil_windows.proc_info` -- a C call costing about 5 ms per process,
+which does **not release the GIL**. Three hundred processes is over a second in
+which no other thread in the interpreter can run at all, including the one
+feeding audio to the phone. Measured at the socket: gaps between 43 ms frames
+had a p95 of 104 ms and a maximum of 159 ms, while the same capture measured on
+its own was steady at 41.8 ms p95. The server, not the network and not the
+phone, was making the audio bursty.
+
+Threads cannot fix this. A thread blocked inside a C call that holds the GIL
+blocks every other thread by definition. A second *process* can, because it has
+a GIL of its own, so the scan moved to `server/procscan.py` and reports back
+over a pipe on a two-second cadence. `/api/stats` went from 1062 ms to 27 ms,
+socket jitter from 104 ms p95 to 43.8, and the CPU percentages got *better*,
+because psutil now has a fixed interval to divide by instead of however long
+the phone took between requests.
+
+**2. Playback was on the main thread.** A `ScriptProcessorNode` runs its
+callback on the page's main thread, so it competed with the dashboard's own
+rendering; measured main-thread stalls on this phone reach 54 ms, and any stall
+longer than the callback period is an audible hole. The fix is an
+`AudioWorkletProcessor`, which runs on the audio render thread and cannot be
+starved by anything the page draws.
+
+The reason it was not used in the first place was a wrong assumption -- that
+Chromium 71 predates AudioWorklet. It does not: AudioWorklet shipped in Chrome
+66, and the WebView on this phone reports it present. **Check the device before
+ruling a capability out**; the same mistake produced the CSS baseline earlier
+in this document, and there it was right for a different reason.
+
+**3. The jitter buffer re-armed too low.** After a dropout it resumed at 60 ms
+of cushion -- barely one 43 ms frame -- so the next jitter emptied it again.
+That is a feedback loop: 114 underruns in 50 seconds, which is exactly what
+"playing in chunks" sounds like.
+
+It now waits for the whole cushion before resuming, and the cushion is not a
+fixed number: it grows by 60 ms each time the buffer runs dry and gives back
+4 ms per quiet second, so it settles wherever the device needs it. On the
+Realme it walks down to its 120 ms floor and stays there. A faster phone ends
+up with less delay without anyone choosing a number for it.
+
+There is also a **clock-drift** correction, which nothing on the old path had.
+The PC samples at "48000" and the phone plays at "48000", but the crystals
+differ by tens of parts per million -- seconds of error per hour -- so the
+buffer would slowly fill or drain and eventually break however well it was
+sized. Playback speed is nudged by at most 0.5%, eight cents, well under
+audibility, to hold the buffer at its target.
+
+Result, streaming a test tone for 80 seconds with the dashboard live:
+**zero underruns**, buffer steady between 118 and 141 ms, output peak matching
+the source amplitude.
+
+`window.__audioStats` carries the live figures -- fill, target, underruns,
+output peak -- so this is measurable rather than arguable.
+
+### Is Python the problem?
+
+It was reasonable to ask, and the answer is a useful one: **no, and the
+measurement says so plainly.** The whole capture loop -- WASAPI read, clip,
+convert, hand to the socket -- costs **0.18% of one core**. Rewriting it in C
+would save around a fiftieth of one percent of a CPU.
+
+What *did* hurt was Python-specific, but not Python's speed: the GIL, and one
+library call that holds it for 5 ms at a time. The fix was to move that call
+out of the interpreter, not to leave the language. The general shape of it
+holds well beyond this project -- when a runtime looks slow, measure before
+rewriting, because the cost is usually one call in one place, and a rewrite
+carries every one of those calls along with it.
 
 ### Dictating to the PC
 

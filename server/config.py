@@ -43,6 +43,11 @@ WEATHER_PLACE: str | None = None
 
 # ---------------------------------------------------------------- device ----
 ADB = "adb"  # resolved via PATH; C:\platform-tools is already there
+
+# Which phone to drive when more than one is plugged in. Empty means "the
+# first one adb happens to list", which is a coin toss with two devices
+# attached; set it to a serial from `adb devices` to pin it.
+ANDROID_SERIAL = ""
 ANDROID_PACKAGE = "com.phonedeck.shell"
 ANDROID_ACTIVITY = f"{ANDROID_PACKAGE}/.MainActivity"
 

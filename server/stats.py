@@ -13,7 +13,7 @@ from typing import Any
 
 import psutil
 
-from . import claude, downloads, notes, nowplaying, sensors, weather
+from . import claude, downloads, notes, nowplaying, procscan, sensors, weather
 
 _BOOT_TIME = psutil.boot_time()
 _LOGICAL_CORES = psutil.cpu_count(logical=True) or 1
@@ -192,46 +192,6 @@ def _network() -> dict[str, Any]:
     }
 
 
-def _top_processes(limit: int = 20) -> dict[str, list[dict[str, Any]]]:
-    """Busiest processes by CPU, with memory as the tiebreaker.
-
-    cpu_percent() without an interval returns usage since *that process object*
-    was last polled. psutil caches per-PID state internally between calls, so
-    repeated polling from the dashboard yields sensible values.
-    """
-    procs: list[dict[str, Any]] = []
-    for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_info"]):
-        try:
-            info = p.info
-            pid = info["pid"]
-            # PID 0 is the System Idle Process: it is not a task, and its
-            # "usage" is whatever the machine is *not* doing. Task Manager
-            # hides it and so do we, or it permanently tops the list.
-            if pid == 0:
-                continue
-            mem = info.get("memory_info")
-            # psutil reports CPU summed across cores, so a single busy thread
-            # on a 20-thread box reads 100%. Divide by the core count to get
-            # the share-of-machine figure Task Manager shows.
-            raw_cpu = info.get("cpu_percent") or 0.0
-            procs.append({
-                "pid": pid,
-                "name": info.get("name") or "?",
-                "cpu": round(raw_cpu / _LOGICAL_CORES, 1),
-                "mem": mem.rss if mem else 0,
-                "mem_h": _human_bytes(mem.rss) if mem else "0 B",
-            })
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-
-    # The dashboard offers a CPU tab and a RAM tab, and the heaviest processes
-    # by one measure are frequently not the heaviest by the other. Sorting the
-    # same snapshot twice is far cheaper than walking the process table again.
-    by_cpu = sorted(procs, key=lambda x: (x["cpu"], x["mem"]), reverse=True)
-    by_mem = sorted(procs, key=lambda x: (x["mem"], x["cpu"]), reverse=True)
-    return {"by_cpu": by_cpu[:limit], "by_mem": by_mem[:limit]}
-
-
 def _battery() -> dict[str, Any] | None:
     try:
         bat = psutil.sensors_battery()
@@ -288,5 +248,7 @@ def snapshot(include_processes: bool = True) -> dict[str, Any]:
         "downloads": downloads.downloads.snapshot(),
     }
     if include_processes:
-        data["processes"] = _top_processes()
+        # Scanned in a child process, on its own cadence; see procscan.py for
+        # why it cannot be done here.
+        data["processes"] = procscan.scanner.snapshot()
     return data

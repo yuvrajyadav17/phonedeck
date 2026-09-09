@@ -19,7 +19,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from .config import ADB, ANDROID_ACTIVITY, ANDROID_PACKAGE, PORT
+from .config import (ADB, ANDROID_ACTIVITY, ANDROID_PACKAGE,
+                     ANDROID_SERIAL, PORT)
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 POLL_SECONDS = 3.0
@@ -70,6 +71,20 @@ def list_devices() -> list[tuple[str, str]]:
         serial, status = line.split("\t", 1)
         devices.append((serial.strip(), status.strip()))
     return devices
+
+
+def _preferred(devices: list[tuple[str, str]]) -> tuple[str, str]:
+    """Pick the phone to drive when several are attached.
+
+    adb lists devices in no meaningful order, so with two phones plugged in
+    the dashboard would land on whichever came first that boot.
+    config.ANDROID_SERIAL pins it; without one, the first is still used.
+    """
+    if ANDROID_SERIAL:
+        for entry in devices:
+            if entry[0] == ANDROID_SERIAL:
+                return entry
+    return devices[0]
 
 
 def setup_reverse(serial: str, port: int = PORT) -> bool:
@@ -193,7 +208,7 @@ class Bridge:
                 self._stop.wait(POLL_SECONDS)
                 continue
 
-            serial, status = devices[0]
+            serial, status = _preferred(devices)
 
             if status == "unauthorized":
                 self._set(

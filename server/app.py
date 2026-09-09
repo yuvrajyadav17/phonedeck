@@ -15,7 +15,7 @@ from flask import Flask, jsonify, request, send_file, send_from_directory
 from flask_sock import Sock
 
 from . import (actions, audio_out, claude, downloads, hotkeys, icons,
-               macros, notes, nowplaying, sensors, stats, voice,
+               macros, notes, nowplaying, procscan, sensors, stats, voice,
                weather)
 from .bridge import Bridge
 from . import config
@@ -201,7 +201,11 @@ def create_app() -> Flask:
 
     @sock.route("/ws/audio")
     def ws_audio(ws):
-        """Raw mono 16-bit PCM at 48 kHz, for as long as the socket is open.
+        """Raw interleaved 16-bit PCM, for as long as the socket is open.
+
+        The first frame is a JSON text message describing the format, so the
+        player does not have to assume a rate or a channel count and can be
+        told if either ever changes.
 
         Browsers cannot set headers on a WebSocket handshake, so the token
         rides the query string here rather than a header.
@@ -210,6 +214,8 @@ def create_app() -> Flask:
             ws.close()
             return
 
+        ws.send(json.dumps({"rate": audio_out.RATE,
+                            "channels": audio_out.CHANNELS}))
         listener = audio_out.audio_out.subscribe()
         log.info("audio listener connected")
         try:
@@ -380,6 +386,7 @@ def main() -> None:
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
     app = create_app()
+    procscan.scanner.start()
     sensors.start()
     weather.weather.start(config.WEATHER_LAT, config.WEATHER_LON,
                           config.WEATHER_PLACE)

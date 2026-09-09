@@ -452,18 +452,16 @@
   };
 
   // ==================================================== audio listen =====
-  /* Raw mono PCM at 48 kHz arrives over a WebSocket and is played through a
-     ScriptProcessorNode. AudioWorklet would be tidier, but ScriptProcessor is
-     the one that certainly exists in Chromium 71.
+  /* Interleaved 16-bit PCM arrives over a WebSocket and is played by an
+     AudioWorklet (see audio-worklet.js, which holds the jitter buffer and the
+     drift correction).
 
-     A jitter buffer absorbs the uneven arrival of network blocks; playback
-     waits until it has some cushion, and drops the oldest audio if it ever
-     runs far ahead, because stale sound is worse than a gap. */
-  var SRC_RATE = 48000;
-  var PREBUFFER = 9600;        // 200 ms before we start
-  var MAX_BUFFER = 48000;      // 1 s ceiling
-  var audioWs = null, audioNode = null;
-  var chunks = [], buffered = 0, playPos = 0, playing = false;
+     The work this file does is deliberately tiny: hand the raw ArrayBuffer
+     straight to the worklet, transferring rather than copying it. Everything
+     that has to happen on time happens on the audio thread, because this
+     thread is busy drawing the dashboard and stalls for tens of milliseconds
+     at a stretch. */
+  var audioWs = null, audioNode = null, audioPending = null;
 
   function setSpeakerUi(state) {
     var btn = $("spkBtn");
@@ -474,14 +472,23 @@
   }
 
   function audioStop() {
-    if (audioWs) { try { audioWs.close(); } catch (e) {} audioWs = null; }
+    if (audioWs) { var w = audioWs; audioWs = null; try { w.close(); } catch (e) {} }
     if (audioNode) {
       try { audioNode.disconnect(); } catch (e) {}
-      audioNode.onaudioprocess = null;
       audioNode = null;
     }
-    chunks = []; buffered = 0; playPos = 0; playing = false;
+    audioPending = null;
     setSpeakerUi("off");
+  }
+
+  /* The worklet module is fetched once and kept; addModule is a network round
+     trip and re-registering the processor on every tap would be wasteful. */
+  var workletReady = null;
+  function loadWorklet() {
+    if (workletReady) return workletReady;
+    if (!audioCtx.audioWorklet) return null;
+    workletReady = audioCtx.audioWorklet.addModule("/audio-worklet.js");
+    return workletReady;
   }
 
   function audioStart() {
@@ -491,52 +498,113 @@
 
     setSpeakerUi("connecting");
     var scheme = location.protocol === "https:" ? "wss:" : "ws:";
-    audioWs = new WebSocket(scheme + "//" + location.host
-                            + "/ws/audio?t=" + encodeURIComponent(token));
-    audioWs.binaryType = "arraybuffer";
+    var ws = new WebSocket(scheme + "//" + location.host
+                           + "/ws/audio?t=" + encodeURIComponent(token));
+    ws.binaryType = "arraybuffer";
+    audioWs = ws;
+    audioPending = [];
 
-    audioWs.onopen = function () { setSpeakerUi("on"); };
-    audioWs.onerror = function () { toast("Audio stream failed", "bad"); audioStop(); };
-    audioWs.onclose = function () { if (audioWs) audioStop(); };
+    ws.onopen = function () { setSpeakerUi("on"); };
+    ws.onerror = function () { toast("Audio stream failed", "bad"); audioStop(); };
+    ws.onclose = function () { if (audioWs === ws) audioStop(); };
 
-    audioWs.onmessage = function (e) {
-      if (!e.data || e.data.byteLength < 2) return;   // keep-alive ping
-      var src = new Int16Array(e.data);
-      var f = new Float32Array(src.length);
-      for (var i = 0; i < src.length; i++) f[i] = src[i] / 32768;
-      chunks.push(f);
-      buffered += f.length;
-      // Too far behind: throw away the oldest rather than drift for ever.
-      while (buffered > MAX_BUFFER && chunks.length > 1) {
-        buffered -= chunks[0].length;
-        chunks.shift();
-        playPos = 0;
+    ws.onmessage = function (e) {
+      if (audioWs !== ws) return;
+      if (typeof e.data === "string") {           // the format announcement
+        var cfg;
+        try { cfg = JSON.parse(e.data); } catch (err) { return; }
+        startPlayer(ws, cfg);
+        return;
       }
-      if (!playing && buffered >= PREBUFFER) playing = true;
+      if (!e.data || e.data.byteLength < 4) return;   // keep-alive ping
+      if (audioNode) {
+        audioNode.port.postMessage(e.data, [e.data]);
+      } else if (audioPending && audioPending.length < 24) {
+        audioPending.push(e.data);
+      }
     };
+  }
 
-    // The context may not run at 48 kHz; step through the source at a ratio
-    // rather than assuming it matches.
-    var ratio = SRC_RATE / audioCtx.sampleRate;
-    audioNode = audioCtx.createScriptProcessor(4096, 1, 1);
-    audioNode.onaudioprocess = function (ev) {
-      var out = ev.outputBuffer.getChannelData(0);
-      for (var i = 0; i < out.length; i++) {
-        while (chunks.length && Math.floor(playPos) >= chunks[0].length) {
-          playPos -= chunks[0].length;
-          buffered -= chunks[0].length;
-          chunks.shift();
+  function startPlayer(ws, cfg) {
+    var ready = loadWorklet();
+    if (!ready) { startFallbackPlayer(ws, cfg); return; }
+
+    ready.then(function () {
+      if (audioWs !== ws) return;                 // stopped while loading
+      var node;
+      try {
+        node = new AudioWorkletNode(audioCtx, "deck-player",
+                                    { outputChannelCount: [cfg.channels] });
+      } catch (e) {
+        node = new AudioWorkletNode(audioCtx, "deck-player");
+      }
+      node.port.onmessage = function (m) {
+        if (m.data && m.data.stats) window.__audioStats = m.data.stats;
+      };
+      node.port.postMessage({ config: cfg });
+      node.connect(audioCtx.destination);
+      audioNode = node;
+      if (audioPending) {
+        for (var i = 0; i < audioPending.length; i++) {
+          node.port.postMessage(audioPending[i], [audioPending[i]]);
         }
-        if (!playing || !chunks.length) {
-          out[i] = 0;                 // underrun: silence, not a click
-          if (!chunks.length) playing = false;
+        audioPending = null;
+      }
+    }, function () {
+      startFallbackPlayer(ws, cfg);
+    });
+  }
+
+  /* Only for a WebView older than Chrome 66, which has no AudioWorklet at all.
+     A ScriptProcessorNode runs on this thread and will glitch whenever the
+     dashboard renders -- but glitching is better than silence. */
+  function startFallbackPlayer(ws, cfg) {
+    if (audioWs !== ws) return;
+    var ch = cfg.channels, ratio = cfg.rate / audioCtx.sampleRate;
+    var q = audioPending || [];
+    audioPending = null;
+    var buf = [], have = 0, pos = 0, on = false;
+    var prebuffer = Math.round(cfg.rate * 0.18);
+
+    function take(data) {
+      var pcm = new Int16Array(data);
+      buf.push(pcm); have += pcm.length / ch;
+      while (have > cfg.rate && buf.length > 1) {
+        have -= buf[0].length / ch; buf.shift(); pos = 0;
+      }
+      if (!on && have >= prebuffer) on = true;
+    }
+    for (var i = 0; i < q.length; i++) take(q[i]);
+
+    var node = audioCtx.createScriptProcessor(4096, 1, ch);
+    node.onaudioprocess = function (ev) {
+      var outs = [], c;
+      for (c = 0; c < ev.outputBuffer.numberOfChannels; c++) {
+        outs.push(ev.outputBuffer.getChannelData(c));
+      }
+      for (var i = 0; i < outs[0].length; i++) {
+        while (buf.length && Math.floor(pos) >= buf[0].length / ch) {
+          pos -= buf[0].length / ch; have -= buf[0].length / ch; buf.shift();
+        }
+        if (!on || !buf.length) {
+          for (c = 0; c < outs.length; c++) outs[c][i] = 0;
+          if (!buf.length) on = false;
           continue;
         }
-        out[i] = chunks[0][Math.floor(playPos)];
-        playPos += ratio;
+        var base = Math.floor(pos) * ch;
+        for (c = 0; c < outs.length; c++) {
+          outs[c][i] = buf[0][base + (c < ch ? c : ch - 1)] / 32768;
+        }
+        pos += ratio;
       }
     };
-    audioNode.connect(audioCtx.destination);
+    node.connect(audioCtx.destination);
+    // Route incoming frames here instead of to a worklet port.
+    audioNode = { port: { postMessage: function (d) { take(d); } },
+                  disconnect: function () {
+                    try { node.disconnect(); } catch (e) {}
+                    node.onaudioprocess = null;
+                  } };
   }
 
   $("spkBtn").onclick = function () {

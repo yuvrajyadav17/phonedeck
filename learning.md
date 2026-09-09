@@ -130,8 +130,10 @@ connection dot, and the menu button.
 
 **Centre column** — Network and Disk I/O. Deliberately fixed; it never scrolls.
 
-**Right column** — top processes, with a **CPU / RAM** switch. Scrolls on its
-own.
+**Right column** — clock, weather, and now playing.
+
+Page 2 is two columns: the process list with its **CPU / RAM** switch, and
+every drive.
 
 ### Gestures
 
